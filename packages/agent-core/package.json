@@ -1,0 +1,31 @@
+{
+  "name": "@mentoguard/agent-core",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "olas:register": "tsx src/olas.ts register",
+    "memory:init": "tsx src/memory.ts init"
+  },
+  "dependencies": {
+    "@mentoguard/shared": "workspace:*",
+    "viem": "^2.21.48",
+    "node-cron": "^3.0.3",
+    "lighthouse": "npm:@lighthouse-web3/sdk@^0.3.23",
+    "axios": "^1.7.9",
+    "telegraf": "^4.16.3",
+    "ioredis": "^5.4.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "@types/node": "^22.10.2",
+    "@types/node-cron": "^3.0.11",
+    "tsx": "^4.19.2"
+  }
+}
