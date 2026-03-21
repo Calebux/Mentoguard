@@ -108,3 +108,6 @@ A production autonomous agent running on Celo mainnet:
 - **Self Protocol identity verification** — ZK passport verification unlocks higher limits
 
 The agent made real autonomous decisions that moved real money on a live blockchain. That is the claim, and it is verifiable on-chain.
+
+**Aave V3 yield deployment confirmed:**
+`0xeba6b17715d3185becdc816d924f60cb8ceecdcd38eda06b2c740b298f44408c` — cUSD deposited to Aave V3 after portfolio reached balance. The dual-role architecture works end-to-end: CELO rebalances, stablecoins earn yield.
