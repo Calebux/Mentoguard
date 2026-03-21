@@ -70,8 +70,12 @@ The agent runs a continuous observe → decide → act loop every 60 seconds:
 
 ### Immutable Audit Trail (Filecoin / Lighthouse)
 - Every tick and rebalance is logged to Filecoin via Lighthouse Storage
-- CIDs stored in Redis for retrieval
+- CIDs stored in Redis, retrievable via `/api/activity`
 - Creates a permanent, tamper-proof record of all autonomous decisions
+
+**Sample Filecoin CID** (live tick log — actual FX rates + drift data):
+`bafkreih5gfotjtl6nm6ja7bcjepzvcjbblpwy6y6dxonxoilyala7244iq`
+→ https://gateway.lighthouse.storage/ipfs/bafkreih5gfotjtl6nm6ja7bcjepzvcjbblpwy6y6dxonxoilyala7244iq
 
 ### Identity Verification (Self Protocol)
 - Users verify their identity via Self Protocol's ZK passport verification
