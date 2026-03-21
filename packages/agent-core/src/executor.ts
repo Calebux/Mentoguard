@@ -22,19 +22,39 @@ interface UniswapQuote {
   value: string;
 }
 
+const CUSD_ADDRESS = "0x765DE816845861e75A25fCA122bb6898B8B1282a";
+
 async function getUniswapQuote(swap: SwapInstruction): Promise<UniswapQuote> {
-  const response = await axios.get(`${UNISWAP_API_URL}/quote`, {
-    headers: { "x-api-key": UNISWAP_API_KEY },
-    params: {
-      tokenIn: swap.fromAddress,
-      tokenOut: swap.toAddress,
-      amount: parseUnits(swap.amountUSD.toFixed(6), 18).toString(),
-      chainId: CELO_CHAIN_ID,
-      type: "EXACT_INPUT",
-      slippageTolerance: "0.5",
-    },
-  });
-  return response.data as UniswapQuote;
+  // Try direct pair first, fall back to routing through cUSD
+  const tokenOuts = swap.toAddress === CUSD_ADDRESS
+    ? [swap.toAddress]
+    : [swap.toAddress, CUSD_ADDRESS];
+
+  for (const tokenOut of tokenOuts) {
+    try {
+      const response = await axios.get(`${UNISWAP_API_URL}/quote`, {
+        headers: { "x-api-key": UNISWAP_API_KEY },
+        params: {
+          tokenIn: swap.fromAddress,
+          tokenOut,
+          amount: parseUnits(swap.amountUSD.toFixed(6), 18).toString(),
+          chainId: CELO_CHAIN_ID,
+          type: "EXACT_INPUT",
+          slippageTolerance: "0.5",
+        },
+      });
+      if (tokenOut !== swap.toAddress) {
+        console.log(`[executor] No direct route, routing through cUSD`);
+      }
+      return response.data as UniswapQuote;
+    } catch (err: unknown) {
+      if ((err as { response?: { status?: number } }).response?.status === 404 && tokenOut !== CUSD_ADDRESS) {
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error(`No Uniswap route found for ${swap.fromToken} → ${swap.toToken}`);
 }
 
 async function submitUniswapOrder(
