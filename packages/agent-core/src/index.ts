@@ -4,7 +4,7 @@ config({ path: resolve(__dirname, "../../../.env") });
 
 import cron from "node-cron";
 import { monitorTick } from "./monitor";
-import { loadUserConfig, saveAgentState, saveLastTick } from "./memory";
+import { loadUserConfig, loadAgentState, saveAgentState, saveLastTick } from "./memory";
 import { sendTelegramMessage } from "./notifications";
 import { decideAction } from "./llm";
 import { computeRebalanceSwaps } from "./strategy";
@@ -44,6 +44,13 @@ export async function startAgent(): Promise<void> {
 
   cronJob = cron.schedule(`*/${MONITOR_INTERVAL_SECONDS} * * * * *`, async () => {
     try {
+      // Check if paused via dashboard
+      const agentState = await loadAgentState();
+      if (agentState?.status === "stopped") {
+        console.log("[MentoGuard] Agent paused — skipping tick");
+        return;
+      }
+
       const stored = await loadUserConfig();
       const envSmartAccount = (process.env.CELO_SMART_ACCOUNT_ADDRESS ?? "") as `0x${string}`;
       const smartAccount = (stored?.smartAccount || envSmartAccount) as `0x${string}`;
