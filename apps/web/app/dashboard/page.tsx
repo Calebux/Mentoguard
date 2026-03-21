@@ -5,6 +5,7 @@ import { ExposureDonut } from "@/components/ExposureDonut";
 import { FXRateHeatmap } from "@/components/FXRateHeatmap";
 import { TradeTimeline } from "@/components/TradeTimeline";
 import { AgentActivityFeed } from "@/components/AgentActivityFeed";
+import { YieldOpportunities } from "@/components/YieldOpportunities";
 
 export default function DashboardPage() {
   return (
@@ -19,10 +20,11 @@ export default function DashboardPage() {
       {/* FX Heatmap */}
       <FXRateHeatmap />
 
-      {/* Bottom row: Timeline + Activity Feed */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* Bottom row: Timeline + Activity + Yields */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <TradeTimeline />
         <AgentActivityFeed />
+        <YieldOpportunities />
       </div>
     </div>
   );

@@ -1,4 +1,8 @@
 import type { TickResult, UserConfig } from "@mentoguard/shared";
+import Redis from "ioredis";
+import type { YieldRates } from "./yields";
+
+const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
 
 const BASE_URL = process.env.HERMES_BASE_URL ?? "https://inference-api.nousresearch.com/v1";
 const API_KEY  = process.env.HERMES_API_KEY ?? "";
@@ -15,8 +19,8 @@ const TOOLS = [
       parameters: {
         type: "object",
         properties: {
-          fromToken: { type: "string", enum: ["cUSD", "cEUR", "cBRL", "cREAL"], description: "Token to sell" },
-          toToken:   { type: "string", enum: ["cUSD", "cEUR", "cBRL", "cREAL"], description: "Token to buy" },
+          fromToken: { type: "string", enum: ["cUSD", "cEUR", "cBRL", "cREAL", "CELO"], description: "Token to sell" },
+          toToken:   { type: "string", enum: ["cUSD", "cEUR", "cBRL", "cREAL", "CELO"], description: "Token to buy" },
           amountUSD: { type: "number", description: "USD value to swap" },
           reason:    { type: "string", description: "Plain-English explanation of why this swap is needed" },
         },
@@ -86,6 +90,18 @@ export async function decideAction(
 ): Promise<AgentDecision[]> {
   const totalUSD = result.balances.reduce((s, b) => s + b.balanceUSD, 0);
 
+  // Load yield rates from Redis (fetched by monitor each tick)
+  let yieldContext = "";
+  try {
+    const yieldsRaw = await redis.get("mentoguard:yield_rates");
+    if (yieldsRaw) {
+      const yields = JSON.parse(yieldsRaw) as YieldRates;
+      const fmt = (ops: YieldRates["cUSD"]) =>
+        ops.length ? ops.map(o => `${o.protocol} ${o.apy.toFixed(2)}% APY`).join(", ") : "none found";
+      yieldContext = `\nYield opportunities on Celo:\n  cUSD: ${fmt(yields.cUSD)}\n  cEUR: ${fmt(yields.cEUR)}`;
+    }
+  } catch {}
+
   const context = `
 Portfolio value: $${totalUSD.toFixed(2)}
 Current allocation:
@@ -109,6 +125,7 @@ User rules:
   Drift threshold: ${config.driftThreshold}%
   Max single swap: $${config.rules.maxSwapAmountUSD}
   Max daily volume: $${config.rules.maxDailyVolumeUSD}
+${yieldContext}
 `.trim();
 
   const systemPrompt = `You are MentoGuard, an autonomous FX hedging agent for Celo stablecoins.

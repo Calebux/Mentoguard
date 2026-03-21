@@ -16,6 +16,7 @@ import type {
   MentoToken,
 } from "@mentoguard/shared";
 import { logTick } from "./memory";
+import { fetchYieldRates } from "./yields";
 
 const ERC20_ABI = parseAbi([
   "function balanceOf(address owner) view returns (uint256)",
@@ -116,6 +117,7 @@ export async function monitorTick(config: UserConfig): Promise<TickResult> {
   const [rates, balances] = await Promise.all([
     fetchFXRates(),
     fetchPortfolioBalances(config.smartAccount),
+    fetchYieldRates(), // fire-and-forget into Redis; used by LLM context
   ]);
 
   const currentAllocation = computeAllocation(balances, rates);
