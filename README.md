@@ -6,7 +6,7 @@ MentoGuard is an AI-powered autonomous agent that manages a dual-purpose portfol
 
 **Live Demo:** https://mentoguard.vercel.app
 **Telegram Bot:** [@MentoGuardBot](https://t.me/MentoGuardBot)
-**Confirmed On-Chain Activity (Celo Mainnet):** 12+ autonomous transactions — rebalancing swaps and Aave yield deployment both live.
+**Confirmed On-Chain Activity (Celo Mainnet):** 13+ autonomous transactions — rebalancing swaps and Aave yield deployment both live.
 
 **Yield deployment:** cUSD → Aave V3 `0xeba6b17715d3185becdc816d924f60cb8ceecdcd38eda06b2c740b298f44408c`
 
@@ -23,6 +23,7 @@ MentoGuard is an AI-powered autonomous agent that manages a dual-purpose portfol
 | cUSD → cEUR | `0x29477d43e85eef6db5c8530808e20cf7ac2e3c50c695caeb36da191978b2f78c` |
 | CELO → cUSD | `0x8228bbc56123a286cb209a4ecf7d169946570e1960bc80a868fed7c12ba942be` |
 | CELO → cUSD | `0x0fffcce0e9b631a3720c255eea97f48f0be6a0d3a3d6ca55cba04e0fbb185809` |
+| CELO → cUSD | `0x9e6649d2b4798c25931f906515465d47c634a115d2897708fbbfee24475ef5ff` |
 
 ---
 
