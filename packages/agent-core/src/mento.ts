@@ -3,7 +3,6 @@ import { privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
 
 const BROKER_ADDRESS = "0x777A8255cA72412f0d706dc03C9D1987306B4CaD" as const;
-// Wrapped CELO (ERC-20) — used as intermediary for two-hop swaps
 const CELO_TOKEN = "0x471EcE3750Da237f93B8E339c536989b8978a438" as const;
 
 const BROKER_ABI = parseAbi([
@@ -27,22 +26,43 @@ const publicClient = createPublicClient({
   transport: http(process.env.CELO_RPC_URL ?? "https://forno.celo.org"),
 });
 
-/** Returns first exchange where the oracle can quote the amount, or throws. */
+/** Ensures allowance >= amount. Approve is done BEFORE oracle check to reduce timing gap. */
+async function approveIfNeeded(
+  token: `0x${string}`,
+  spender: `0x${string}`,
+  amount: bigint,
+  owner: `0x${string}`,
+  walletClient: ReturnType<typeof createWalletClient>
+) {
+  const allowance = await publicClient.readContract({
+    address: token, abi: ERC20_ABI, functionName: "allowance",
+    args: [owner, spender],
+  }) as bigint;
+  if (allowance < amount) {
+    const tx = await walletClient.writeContract({
+      address: token, abi: ERC20_ABI, functionName: "approve",
+      args: [spender, amount],
+    });
+    const receipt = await publicClient.waitForTransactionReceipt({ hash: tx });
+    if (receipt.status === "reverted") throw new Error(`Approve reverted: ${tx}`);
+    console.log(`[mento] Approved ${token}: ${tx}`);
+  }
+}
+
+/** Returns first exchange with a live oracle quote, or throws. */
 async function findWorkingExchange(
   tokenIn: `0x${string}`,
   tokenOut: `0x${string}`,
   amountIn: bigint
 ): Promise<{ provider: `0x${string}`; exchangeId: `0x${string}`; amountOut: bigint }> {
   const providers = await publicClient.readContract({
-    address: BROKER_ADDRESS,
-    abi: BROKER_ABI,
+    address: BROKER_ADDRESS, abi: BROKER_ABI,
     functionName: "getExchangeProviders",
   }) as `0x${string}`[];
 
   for (const provider of providers) {
     const exchanges = await publicClient.readContract({
-      address: provider,
-      abi: EXCHANGE_PROVIDER_ABI,
+      address: provider, abi: EXCHANGE_PROVIDER_ABI,
       functionName: "getExchanges",
     }) as { exchangeId: `0x${string}`; assets: `0x${string}`[] }[];
 
@@ -52,12 +72,11 @@ async function findWorkingExchange(
       if (!hasIn || !hasOut) continue;
       try {
         const amountOut = await publicClient.readContract({
-          address: BROKER_ADDRESS,
-          abi: BROKER_ABI,
+          address: BROKER_ADDRESS, abi: BROKER_ABI,
           functionName: "getAmountOut",
           args: [provider, ex.exchangeId, tokenIn, tokenOut, amountIn],
         }) as bigint;
-        console.log(`[mento] Oracle OK: ${ex.exchangeId} → ${formatUnits(amountIn, 18)} in, ~${formatUnits(amountOut, 18)} out`);
+        console.log(`[mento] Oracle OK: ${formatUnits(amountIn, 18)} in → ~${formatUnits(amountOut, 18)} out`);
         return { provider, exchangeId: ex.exchangeId, amountOut };
       } catch {
         console.warn(`[mento] Exchange ${ex.exchangeId} oracle stale, skipping`);
@@ -67,27 +86,22 @@ async function findWorkingExchange(
   throw new Error(`no valid median — oracle stale for ${tokenIn} → ${tokenOut}`);
 }
 
-async function approveIfNeeded(
-  token: `0x${string}`,
-  spender: `0x${string}`,
-  amount: bigint,
-  owner: `0x${string}`,
+async function doSwap(
+  provider: `0x${string}`,
+  exchangeId: `0x${string}`,
+  tokenIn: `0x${string}`,
+  tokenOut: `0x${string}`,
+  amountIn: bigint,
+  minOut: bigint,
   walletClient: ReturnType<typeof createWalletClient>
-) {
-  const allowance = await publicClient.readContract({
-    address: token,
-    abi: ERC20_ABI,
-    functionName: "allowance",
-    args: [owner, spender],
-  }) as bigint;
-  if (allowance < amount) {
-    const tx = await walletClient.writeContract({
-      address: token, abi: ERC20_ABI, functionName: "approve",
-      args: [spender, amount],
-    });
-    await publicClient.waitForTransactionReceipt({ hash: tx });
-    console.log(`[mento] Approved ${token}: ${tx}`);
-  }
+): Promise<string> {
+  const txHash = await walletClient.writeContract({
+    address: BROKER_ADDRESS, abi: BROKER_ABI, functionName: "swapIn",
+    args: [provider, exchangeId, tokenIn, tokenOut, amountIn, minOut],
+  });
+  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+  if (receipt.status === "reverted") throw new Error(`swapIn reverted: ${txHash}`);
+  return txHash;
 }
 
 export async function executeMentoSwap(
@@ -107,19 +121,16 @@ export async function executeMentoSwap(
   const amountIn = parseUnits(amountUSD.toFixed(6), 18);
 
   // ── Attempt 1: direct swap ──────────────────────────────────────────────────
+  // Approve FIRST (takes ~5s for block), then check oracle right before swapIn
+  // to minimize the window between oracle check and swap execution.
   try {
-    const { provider, exchangeId, amountOut } = await findWorkingExchange(tokenIn, tokenOut, amountIn);
-    const minOut = (amountOut * 995n) / 1000n;
     await approveIfNeeded(tokenIn, BROKER_ADDRESS, amountIn, account.address, walletClient);
-    const txHash = await walletClient.writeContract({
-      address: BROKER_ADDRESS, abi: BROKER_ABI, functionName: "swapIn",
-      args: [provider, exchangeId, tokenIn, tokenOut, amountIn, minOut],
-    });
-    await publicClient.waitForTransactionReceipt({ hash: txHash });
+    const { provider, exchangeId, amountOut } = await findWorkingExchange(tokenIn, tokenOut, amountIn);
+    const txHash = await doSwap(provider, exchangeId, tokenIn, tokenOut, amountIn, (amountOut * 995n) / 1000n, walletClient);
     console.log(`[mento] Direct swap confirmed: ${txHash}`);
     return txHash;
   } catch (err) {
-    console.warn(`[mento] Direct swap failed (${(err as Error).message}), trying two-hop via CELO...`);
+    console.warn(`[mento] Direct swap failed: ${(err as Error).message}`);
   }
 
   // ── Attempt 2: two-hop tokenIn → CELO → tokenOut ───────────────────────────
@@ -127,33 +138,24 @@ export async function executeMentoSwap(
     throw new Error("no valid median — oracle stale and no two-hop path available");
   }
 
-  // Hop 1: tokenIn → CELO
-  const hop1 = await findWorkingExchange(tokenIn, CELO_TOKEN, amountIn);
-  const minCelo = (hop1.amountOut * 995n) / 1000n;
+  console.log(`[mento] Trying two-hop via CELO...`);
+
+  // Approve tokenIn first, then check oracle
   await approveIfNeeded(tokenIn, BROKER_ADDRESS, amountIn, account.address, walletClient);
-  const tx1 = await walletClient.writeContract({
-    address: BROKER_ADDRESS, abi: BROKER_ABI, functionName: "swapIn",
-    args: [hop1.provider, hop1.exchangeId, tokenIn, CELO_TOKEN, amountIn, minCelo],
-  });
-  await publicClient.waitForTransactionReceipt({ hash: tx1 });
+  const hop1 = await findWorkingExchange(tokenIn, CELO_TOKEN, amountIn);
+  const tx1 = await doSwap(hop1.provider, hop1.exchangeId, tokenIn, CELO_TOKEN, amountIn, (hop1.amountOut * 995n) / 1000n, walletClient);
   console.log(`[mento] Hop 1 confirmed (→ CELO): ${tx1}`);
 
-  // Read actual CELO balance (avoids estimating hop-1 output)
   const celoReceived = await publicClient.readContract({
     address: CELO_TOKEN, abi: ERC20_ABI,
     functionName: "balanceOf", args: [account.address],
   }) as bigint;
-  console.log(`[mento] CELO received: ${formatUnits(celoReceived, 18)}`);
+  console.log(`[mento] CELO balance after hop 1: ${formatUnits(celoReceived, 18)}`);
 
-  // Hop 2: CELO → tokenOut
-  const hop2 = await findWorkingExchange(CELO_TOKEN, tokenOut, celoReceived);
-  const minOut2 = (hop2.amountOut * 995n) / 1000n;
+  // Approve CELO, then check hop-2 oracle
   await approveIfNeeded(CELO_TOKEN, BROKER_ADDRESS, celoReceived, account.address, walletClient);
-  const tx2 = await walletClient.writeContract({
-    address: BROKER_ADDRESS, abi: BROKER_ABI, functionName: "swapIn",
-    args: [hop2.provider, hop2.exchangeId, CELO_TOKEN, tokenOut, celoReceived, minOut2],
-  });
-  await publicClient.waitForTransactionReceipt({ hash: tx2 });
+  const hop2 = await findWorkingExchange(CELO_TOKEN, tokenOut, celoReceived);
+  const tx2 = await doSwap(hop2.provider, hop2.exchangeId, CELO_TOKEN, tokenOut, celoReceived, (hop2.amountOut * 995n) / 1000n, walletClient);
   console.log(`[mento] Hop 2 confirmed (→ ${tokenOut}): ${tx2}`);
   return tx2;
 }
