@@ -45,9 +45,10 @@ export async function startAgent(): Promise<void> {
   cronJob = cron.schedule(`*/${MONITOR_INTERVAL_SECONDS} * * * * *`, async () => {
     try {
       const stored = await loadUserConfig();
-      const smartAccount = (process.env.CELO_SMART_ACCOUNT_ADDRESS ?? "") as `0x${string}`;
+      const envSmartAccount = (process.env.CELO_SMART_ACCOUNT_ADDRESS ?? "") as `0x${string}`;
+      const smartAccount = (stored?.smartAccount || envSmartAccount) as `0x${string}`;
       if (!smartAccount) {
-        console.warn("[MentoGuard] No CELO_SMART_ACCOUNT_ADDRESS set, skipping tick");
+        console.warn("[MentoGuard] No smart account set, skipping tick");
         return;
       }
 

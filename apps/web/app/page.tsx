@@ -70,7 +70,7 @@ export default function LandingPage() {
             <span className="pulse-green" style={{ width: 6, height: 6, borderRadius: "50%", background: "#28C840", display: "inline-block" }} />
           </div>
           <h1 style={{ fontSize: "clamp(2rem,5vw,3.75rem)", fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.1, margin: "0 0 1.5rem", color: "#191918" }}>
-            Autonomous FX hedging<br />for Mento stablecoins.
+            Autonomous FX hedging<br />for Celo stablecoins.
           </h1>
           <p style={{ fontSize: "1.2rem", fontWeight: 400, maxWidth: "36rem", margin: "0 auto 2.5rem", color: "#191918" }}>
             Set your rules once — the agent monitors, rebalances, and reports 24/7 on Celo.
@@ -95,7 +95,7 @@ export default function LandingPage() {
       <main style={{ maxWidth: 1000, margin: "calc(-10vh - 50px) auto 0", position: "relative", zIndex: 10, padding: "0 1.5rem 120px" }}>
         <div className="m-card" style={{ marginBottom: "1.5rem" }}>
           <p style={{ textAlign: "center", fontSize: "1rem", lineHeight: 1.7, color: "rgba(25,25,24,0.65)", maxWidth: "40rem", margin: "0 auto 2.5rem" }}>
-            MentoGuard builds <strong style={{ color: "#191918", fontWeight: 500 }}>autonomous rebalancing agents</strong> for Mento FX pairs on Celo. Smart delegation, on-chain execution, and Filecoin-backed memory.
+            MentoGuard builds <strong style={{ color: "#191918", fontWeight: 500 }}>autonomous rebalancing agents</strong> for FX stablecoins on Celo. Smart delegation, on-chain execution, and Filecoin-backed memory.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1px 1fr", border: "1px solid rgba(25,25,24,0.12)", borderRadius: 8 }}>
