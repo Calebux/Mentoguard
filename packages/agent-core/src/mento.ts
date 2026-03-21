@@ -64,16 +64,20 @@ export async function executeMentoSwap(
   const { provider, exchangeId } = await findExchange(tokenIn, tokenOut);
   console.log(`[mento] Found exchange ${exchangeId} on provider ${provider}`);
 
-  // Get expected output
-  const amountOut = await publicClient.readContract({
-    address: BROKER_ADDRESS,
-    abi: BROKER_ABI,
-    functionName: "getAmountOut",
-    args: [provider, exchangeId, tokenIn, tokenOut, amountIn],
-  }) as bigint;
-
-  const minOut = (amountOut * 995n) / 1000n; // 0.5% slippage
-  console.log(`[mento] Quote: ${formatUnits(amountIn, 18)} → ${formatUnits(amountOut, 18)} (min: ${formatUnits(minOut, 18)})`);
+  // Try to get expected output, fall back to 0 minOut if oracle unavailable
+  let minOut = 0n;
+  try {
+    const amountOut = await publicClient.readContract({
+      address: BROKER_ADDRESS,
+      abi: BROKER_ABI,
+      functionName: "getAmountOut",
+      args: [provider, exchangeId, tokenIn, tokenOut, amountIn],
+    }) as bigint;
+    minOut = (amountOut * 995n) / 1000n; // 0.5% slippage
+    console.log(`[mento] Quote: ${formatUnits(amountIn, 18)} → ${formatUnits(amountOut, 18)}`);
+  } catch {
+    console.warn(`[mento] Oracle unavailable, proceeding with minOut=0`);
+  }
 
   // Approve broker to spend tokenIn
   const allowance = await publicClient.readContract({
