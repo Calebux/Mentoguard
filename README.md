@@ -6,7 +6,9 @@ MentoGuard is an AI-powered autonomous agent that continuously monitors a portfo
 
 **Live Demo:** https://mentoguard.vercel.app
 **Telegram Bot:** [@MentoGuardBot](https://t.me/MentoGuardBot)
-**Confirmed On-Chain Swap (Celo Mainnet):** `0xe01b1a140bfd2c9727f41b0c068689d494a17bdc4fecb7ade66ef29f9c3f87a0`
+**Confirmed On-Chain Swaps (Celo Mainnet):**
+- CELO → cUSD: `0xe01b1a140bfd2c9727f41b0c068689d494a17bdc4fecb7ade66ef29f9c3f87a0`
+- cUSD → cEUR: `0xacca0898d48e68cde32be6dbdb22fbc416b3928d26b03b883b5f4bb82862417a`
 
 ---
 
@@ -16,7 +18,7 @@ The agent runs a continuous observe → decide → act loop every 60 seconds:
 
 1. **Observe** — Fetches live FX rates (EUR/USD, BRL/USD via Frankfurter API), reads on-chain token balances (cUSD, cEUR, CELO), checks Aave V3 positions, and fetches DeFi yield rates from DeFiLlama.
 
-2. **Decide** — Passes full portfolio context to Hermes (NousResearch Hermes-4-70B LLM via function calling). Hermes chooses from four actions: `execute_swap`, `deposit_to_aave`, `withdraw_from_aave`, or `hold`.
+2. **Decide** — Passes full portfolio context to Hermes (NousResearch Hermes-4-70B LLM via function calling). Context includes portfolio drift, live FX rates, 24h price momentum (CELO), yield opportunities, and current Aave positions. Hermes weighs market conditions against drift thresholds — e.g. delaying a CELO buy during a strong downtrend — and chooses from: `execute_swap`, `deposit_to_aave`, `withdraw_from_aave`, or `hold`.
 
 3. **Act** — Executes the decision on-chain:
    - Swaps via **Mento Broker** (native Celo stablecoin DEX) with automatic fallback to two-hop routing via CELO

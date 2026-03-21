@@ -146,6 +146,23 @@ export async function decideAction(
     ? `\nAave V3 positions (earning yield):\n${Object.entries(aavePositions).map(([t, v]) => `  ${t}: $${v.toFixed(2)}`).join("\n")}`
     : "\nAave V3 positions: none (idle funds not earning yield)";
 
+  // Load market signals (price momentum) from Redis
+  let marketContext = "";
+  try {
+    const raw = await redis.get("mentoguard:market_signals");
+    if (raw) {
+      const signals = JSON.parse(raw) as { celo24hChange: number };
+      const dir = signals.celo24hChange > 0 ? "▲" : "▼";
+      const abs = Math.abs(signals.celo24hChange).toFixed(2);
+      const sentiment = Math.abs(signals.celo24hChange) > 5
+        ? signals.celo24hChange > 0 ? "strong uptrend" : "strong downtrend"
+        : Math.abs(signals.celo24hChange) > 2
+          ? signals.celo24hChange > 0 ? "mild uptrend" : "mild downtrend"
+          : "stable";
+      marketContext = `\nMarket signals (24h):\n  CELO: ${dir}${abs}% (${sentiment})`;
+    }
+  } catch {}
+
   const context = `
 Portfolio value: $${totalUSD.toFixed(2)}
 Current allocation:
@@ -169,19 +186,27 @@ User rules:
   Drift threshold: ${config.driftThreshold}%
   Max single swap: $${config.rules.maxSwapAmountUSD}
   Max daily volume: $${config.rules.maxDailyVolumeUSD}
+${marketContext}
 ${yieldContext}
 ${aaveContext}
 `.trim();
 
   const systemPrompt = `You are MentoGuard, an autonomous FX hedging agent for Celo stablecoins.
-Your job is to analyze the portfolio and call the right tool.
+Your job is to analyze the portfolio, weigh market conditions, and call the right tool.
 
-Decision rules (follow strictly):
-1. If ANY token drift EXCEEDS the threshold AND portfolio value > $0: call execute_swap to rebalance. Sell the most overweight token, buy the most underweight. Amount = min(overweight USD value, max single swap).
-2. If drift is between 80%-100% of threshold (approaching but not exceeded): call send_alert only.
-3. If all drift is below 80% of threshold: call hold.
+Decision rules:
+1. If ANY token drift EXCEEDS the threshold AND portfolio value > $0: call execute_swap. Sell the most overweight token, buy the most underweight. Amount = min(overweight USD value, max single swap).
+   - Exception: if CELO is in a strong downtrend (>5% down 24h) and you would be buying CELO, consider whether the FX hedge benefit outweighs the momentum risk. If drift is only slightly above threshold (< 2x threshold), you MAY hold and send_alert instead.
+2. If drift is between 80%-100% of threshold: call send_alert only.
+3. If all drift is below 80% of threshold AND idle stablecoins are not earning yield: call deposit_to_aave to put idle cUSD or cEUR to work. Only if Aave positions < 50% of that token's wallet balance.
+4. If all drift is below 80% of threshold AND funds are already in Aave: call hold.
 
-IMPORTANT: If drift exceeds threshold, you MUST call execute_swap — not send_alert. Alerts are only for approaching threshold.`;
+Market timing guidance:
+- Strong uptrend (>5% 24h): rebalancing into CELO is favorable — act on smaller drift.
+- Strong downtrend (>5% 24h): rebalancing into CELO carries momentum risk — require drift to clearly exceed threshold.
+- Stable market: follow the standard drift rules strictly.
+
+IMPORTANT: If drift exceeds threshold, default is execute_swap. Only override with send_alert if market conditions are extreme and drift is marginal.`;
 
   const res = await fetch(`${BASE_URL}/chat/completions`, {
     method: "POST",

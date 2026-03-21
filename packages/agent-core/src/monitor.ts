@@ -35,7 +35,7 @@ const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
 export async function fetchFXRates(): Promise<FXRates> {
   const [fxRes, celoRes] = await Promise.all([
     fetch("https://api.frankfurter.app/latest?base=USD&symbols=EUR,BRL"),
-    fetch("https://api.coingecko.com/api/v3/simple/price?ids=celo&vs_currencies=usd"),
+    fetch("https://api.coingecko.com/api/v3/simple/price?ids=celo&vs_currencies=usd&include_24hr_change=true"),
   ]);
 
   if (!fxRes.ok) throw new Error(`Frankfurter API error: ${fxRes.status}`);
@@ -44,10 +44,19 @@ export async function fetchFXRates(): Promise<FXRates> {
   const brlUSD  = 1 / data.rates.BRL;
 
   let celoUSD = 0.5; // fallback if CoinGecko is unavailable
+  let celo24hChange = 0;
   if (celoRes.ok) {
-    const celoData = (await celoRes.json()) as { celo?: { usd?: number } };
+    const celoData = (await celoRes.json()) as { celo?: { usd?: number; usd_24h_change?: number } };
     celoUSD = celoData.celo?.usd ?? celoUSD;
+    celo24hChange = celoData.celo?.usd_24h_change ?? 0;
   }
+
+  // Store market signals in Redis for LLM context
+  await redis.set(
+    "mentoguard:market_signals",
+    JSON.stringify({ celo24hChange, updatedAt: Date.now() }),
+    "EX", 120
+  );
 
   const rates: FXRates = {
     cUSD:  1.0,
