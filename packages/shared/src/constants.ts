@@ -28,9 +28,9 @@ export const ENS_REGISTRY_ADDRESS: Address =
 export const DEFAULT_DRIFT_THRESHOLD = 5; // 5%
 export const DEFAULT_TARGET_ALLOCATION = {
   cUSD: 50,
-  cEUR: 30,
-  cBRL: 15,
-  cREAL: 5,
+  cEUR: 50,
+  cBRL: 0,
+  cREAL: 0,
 };
 
 export const DEFAULT_DELEGATION_RULES = {
