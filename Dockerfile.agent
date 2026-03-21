@@ -1,0 +1,7 @@
+FROM node:20-alpine
+RUN npm i -g pnpm
+WORKDIR /app
+COPY . .
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @mentoguard/shared build
+CMD ["node", "--loader", "tsx/esm", "packages/agent-core/src/index.ts"]
