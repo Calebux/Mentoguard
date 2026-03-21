@@ -25,10 +25,11 @@ interface UniswapQuote {
 const CUSD_ADDRESS = "0x765DE816845861e75A25fCA122bb6898B8B1282a";
 
 async function getUniswapQuote(swap: SwapInstruction): Promise<UniswapQuote> {
-  // Try direct pair first, fall back to routing through cUSD
-  const tokenOuts = swap.toAddress === CUSD_ADDRESS
-    ? [swap.toAddress]
-    : [swap.toAddress, CUSD_ADDRESS];
+  // Only fall back to cUSD if neither side is already cUSD
+  const tokenOuts: string[] = [swap.toAddress];
+  if (swap.fromAddress !== CUSD_ADDRESS && swap.toAddress !== CUSD_ADDRESS) {
+    tokenOuts.push(CUSD_ADDRESS);
+  }
 
   for (const tokenOut of tokenOuts) {
     try {
@@ -48,7 +49,8 @@ async function getUniswapQuote(swap: SwapInstruction): Promise<UniswapQuote> {
       }
       return response.data as UniswapQuote;
     } catch (err: unknown) {
-      if ((err as { response?: { status?: number } }).response?.status === 404 && tokenOut !== CUSD_ADDRESS) {
+      const status = (err as { response?: { status?: number } }).response?.status;
+      if (status === 404 && tokenOut !== tokenOuts[tokenOuts.length - 1]) {
         continue;
       }
       throw err;
