@@ -57,7 +57,14 @@ export async function logRebalance(data: {
 export async function loadUserConfig() {
   const raw = await redis.get("mentoguard:user_config");
   if (!raw) return null;
-  return JSON.parse(raw);
+  const config = JSON.parse(raw);
+  // Migration: clear configs that predate CELO support so defaults take effect
+  if (config?.targetAllocation && !("CELO" in config.targetAllocation)) {
+    console.log("[memory] Clearing legacy user_config (pre-CELO), will use new defaults");
+    await redis.del("mentoguard:user_config");
+    return null;
+  }
+  return config;
 }
 
 export async function saveUserConfig(config: unknown): Promise<void> {
