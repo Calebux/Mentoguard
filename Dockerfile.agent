@@ -4,4 +4,4 @@ WORKDIR /app
 COPY . .
 RUN pnpm install --frozen-lockfile --prod=false
 RUN pnpm --filter @mentoguard/shared build
-CMD ["node", "--loader", "tsx/esm", "packages/agent-core/src/index.ts"]
+CMD ["tsx", "packages/agent-core/src/index.ts"]

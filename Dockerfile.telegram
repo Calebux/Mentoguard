@@ -4,4 +4,4 @@ WORKDIR /app
 COPY . .
 RUN pnpm install --frozen-lockfile --prod=false
 RUN pnpm --filter @mentoguard/shared build
-CMD ["node", "--loader", "tsx/esm", "apps/telegram/src/bot.ts"]
+CMD ["tsx", "apps/telegram/src/bot.ts"]
