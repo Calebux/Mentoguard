@@ -2,7 +2,7 @@
 
 **Autonomous FX hedging and yield optimization agent for Celo stablecoins.**
 
-MentoGuard is an AI-powered autonomous agent that continuously monitors a portfolio of Celo stablecoins, rebalances FX exposure via the Mento Broker, and deploys idle capital into Aave V3 to earn yield — all without manual intervention.
+MentoGuard is an AI-powered autonomous agent that manages a dual-purpose portfolio: **CELO acts as the active hedge instrument** — rebalanced continuously against stablecoins as its price moves — while **cUSD and cEUR are the yield instruments** — deposited into Aave V3 during balanced periods to earn passive interest. The agent coordinates both roles simultaneously, 24/7, without manual intervention.
 
 **Live Demo:** https://mentoguard.vercel.app
 **Telegram Bot:** [@MentoGuardBot](https://t.me/MentoGuardBot)
@@ -29,17 +29,17 @@ The agent runs a continuous observe → decide → act loop every 60 seconds:
 
 ## Key Features
 
-### Autonomous FX Hedging
-- Monitors portfolio drift from user-defined target allocation (default: 45% cUSD, 10% cEUR, 45% CELO)
-- Triggers rebalance when any token drifts more than 5% from target
-- Executes swaps via Mento Broker (`0x777A8255cA72412f0d706dc03C9D1987306B4CaD`)
-- Two-hop routing (tokenIn → CELO → tokenOut) when direct oracle is unavailable
+### CELO as the Hedge Instrument
+- CELO is the active rebalancing asset — its price volatility is what creates drift and triggers swaps
+- Monitors portfolio drift from user-defined target (default: 45% cUSD, 10% cEUR, 45% CELO)
+- Hermes weighs **24h price momentum** before buying into CELO: delays rebalancing during strong downtrends, accelerates during uptrends
+- Executes swaps via Mento Broker (`0x777A8255cA72412f0d706dc03C9D1987306B4CaD`) with two-hop fallback via CELO when a direct oracle is unavailable
 
-### Yield Optimization
-- Reads live APY rates from DeFiLlama for Celo DeFi protocols
-- Deposits idle stablecoins into **Aave V3** (`0x3E59A31363E2ad014dcbc521c4a0d5757d9f3402`) when portfolio is balanced
-- Automatically withdraws from Aave before executing a rebalance swap
-- Hermes reasons about yield vs rebalancing trade-offs in every decision
+### cUSD/cEUR as Yield Instruments
+- Stablecoins drift slowly (EUR/USD moves ~0.5%/day) — they spend most of their time in balance
+- When portfolio is balanced, idle cUSD and cEUR are **automatically deployed to Aave V3** (`0x3E59A31363E2ad014dcbc521c4a0d5757d9f3402`) to earn yield
+- Yield accumulates continuously via aTokens; agent reads live APY from DeFiLlama to confirm best available rate
+- Before a rebalance swap, agent automatically withdraws the required amount from Aave — stablecoins are never locked
 
 ### Natural Language Configuration
 - Users send plain text to the Telegram bot: *"set target to 60% cUSD 40% cEUR"*
@@ -172,7 +172,11 @@ Drift from target:
 
 FX rates: cEUR=$1.1555, CELO=$0.48
 
-Aave V3 positions: cUSD $0.62 (earning yield)
+Market signals (24h):
+  CELO: ▼3.21% (mild downtrend)
+
+Aave V3 positions (earning yield):
+  cUSD: $0.62
 
 Yield opportunities on Celo:
   cUSD: ubeswap 4.20% APY, moola 3.80% APY
@@ -183,7 +187,13 @@ User rules:
   Max single swap: $500
 ```
 
-Hermes then calls one of: `execute_swap`, `deposit_to_aave`, `withdraw_from_aave`, `send_alert`, or `hold`.
+Hermes uses this to make market-aware decisions:
+- **CELO drifting + downtrend** → delay rebalance, send alert
+- **CELO drifting + uptrend** → rebalance immediately
+- **Portfolio balanced + stablecoins idle** → deploy to Aave
+- **Rebalance needed + funds in Aave** → withdraw from Aave, then swap
+
+Calls one of: `execute_swap`, `deposit_to_aave`, `withdraw_from_aave`, `send_alert`, or `hold`.
 
 ---
 
