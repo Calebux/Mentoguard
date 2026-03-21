@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { SelfVerifyButton } from "@/components/SelfVerifyButton";
 import { ENSSetup } from "@/components/ENSSetup";
+import { AuthorizeAgent } from "@/components/AuthorizeAgent";
 
 type Step = "self" | "ens" | "authorize" | "done";
 
@@ -73,19 +74,10 @@ export default function IdentityPage() {
       )}
 
       {step === "authorize" && (
-        <div className="rounded-xl bg-surface border border-border p-6 space-y-4">
-          <h2 className="font-semibold text-lg">Authorize the Agent</h2>
-          <p className="text-text-secondary text-sm">
-            This signs a MetaMask delegation that gives the agent permission to
-            execute swaps within your configured rules. You can revoke at any time.
-          </p>
-          <button
-            className="w-full py-3 rounded-xl bg-accent-primary text-background font-semibold hover:opacity-90"
-            onClick={() => setStep("done")}
-          >
-            Sign Delegation (MetaMask)
-          </button>
-        </div>
+        <AuthorizeAgent
+          ensName={ensName}
+          onAuthorized={() => setStep("done")}
+        />
       )}
 
       {step === "done" && (

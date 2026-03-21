@@ -9,16 +9,18 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#0a0f1e",
-        surface: "#111827",
-        border: "#1f2937",
-        "accent-primary": "#00d4aa",
-        "accent-gold": "#f59e0b",
-        "text-primary": "#f9fafb",
-        "text-secondary": "#9ca3af",
+        background:      "#FFFEF2",
+        surface:         "#FFFFFF",
+        border:          "rgba(25,25,24,0.12)",
+        "accent-primary":"#FCAA2D",
+        "accent-gold":   "#FCAA2D",
+        "text-primary":  "#191918",
+        "text-secondary":"rgba(25,25,24,0.45)",
+        ink:             "#191918",
       },
       fontFamily: {
-        mono: ["var(--font-mono)", "monospace"],
+        mono: ["var(--font-mono)", "Geist Mono", "monospace"],
+        sans: ["var(--font-sans)", "Geist", "system-ui", "sans-serif"],
       },
     },
   },

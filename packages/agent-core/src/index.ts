@@ -1,9 +1,21 @@
+import { config } from "dotenv";
+import { resolve } from "path";
+config({ path: resolve(__dirname, "../../../.env") });
+
 import cron from "node-cron";
 import { monitorTick } from "./monitor";
-import { loadUserConfig, saveAgentState } from "./memory";
-import { sendRebalanceAlert, sendDriftAlert } from "./notifications";
-import { MONITOR_INTERVAL_SECONDS } from "@mentoguard/shared";
-import type { AgentState } from "@mentoguard/shared";
+import { loadUserConfig, saveAgentState, saveLastTick } from "./memory";
+import { sendTelegramMessage } from "./notifications";
+import { decideAction } from "./llm";
+import { computeRebalanceSwaps } from "./strategy";
+import { executeSwap } from "./executor";
+import {
+  MONITOR_INTERVAL_SECONDS,
+  DEFAULT_TARGET_ALLOCATION,
+  DEFAULT_DRIFT_THRESHOLD,
+  DEFAULT_DELEGATION_RULES,
+} from "@mentoguard/shared";
+import type { AgentState, UserConfig } from "@mentoguard/shared";
 
 let isRunning = false;
 let startedAt: number | null = null;
@@ -27,26 +39,87 @@ export async function startAgent(): Promise<void> {
 
   isRunning = true;
   startedAt = Date.now();
-
   console.log("[MentoGuard] Agent starting...");
-
   await saveAgentState({ status: "active", startedAt, totalTrades, totalFeesUSD, lastTickAt: null, uptime: 0 });
 
   cronJob = cron.schedule(`*/${MONITOR_INTERVAL_SECONDS} * * * * *`, async () => {
     try {
-      const config = await loadUserConfig();
-      if (!config) return;
-
-      const result = await monitorTick(config);
-
-      if (result.shouldRebalance) {
-        totalTrades++;
-        await sendRebalanceAlert(result);
+      const stored = await loadUserConfig();
+      const smartAccount = (process.env.CELO_SMART_ACCOUNT_ADDRESS ?? "") as `0x${string}`;
+      if (!smartAccount) {
+        console.warn("[MentoGuard] No CELO_SMART_ACCOUNT_ADDRESS set, skipping tick");
+        return;
       }
 
-      const maxDrift = Math.max(...Object.values(result.drift).map(Math.abs));
-      if (maxDrift > config.driftThreshold * 0.8) {
-        await sendDriftAlert(result, config.driftThreshold);
+      const defaultConfig: UserConfig = {
+        smartAccount,
+        targetAllocation: DEFAULT_TARGET_ALLOCATION,
+        driftThreshold: DEFAULT_DRIFT_THRESHOLD,
+        rules: DEFAULT_DELEGATION_RULES as UserConfig["rules"],
+        selfVerified: false,
+        ensName: null,
+        telegramChatId: process.env.TELEGRAM_CHAT_ID ?? null,
+      };
+      const userConfig: UserConfig = stored
+        ? { ...defaultConfig, ...stored, smartAccount, telegramChatId: stored.telegramChatId ?? defaultConfig.telegramChatId }
+        : defaultConfig;
+
+      // 1. Observe — fetch FX rates + portfolio state
+      const result = await monitorTick(userConfig);
+      saveLastTick(result).catch(() => {});
+
+      console.log(`[MentoGuard] Tick — asking Hermes to decide...`);
+
+      // 2. Decide — Hermes analyzes context and calls tools
+      const decisions = await decideAction(result, userConfig);
+
+      // 3. Act — execute whatever Hermes decided
+      for (const decision of decisions) {
+        console.log(`[MentoGuard] Hermes decision: ${decision.action}`);
+
+        if (decision.action === "execute_swap") {
+          const { fromToken, toToken, amountUSD, reason } = decision;
+          console.log(`[MentoGuard] Swap: ${fromToken}→${toToken} $${amountUSD.toFixed(2)} — ${reason}`);
+
+          // Find the swap instruction from strategy
+          const totalUSD = result.balances.reduce((s, b) => s + b.balanceUSD, 0);
+          const swaps = computeRebalanceSwaps(result.drift, result.currentAllocation, totalUSD);
+          const swap = swaps.find(s => s.fromToken === fromToken && s.toToken === toToken)
+            ?? swaps[0];
+
+          if (swap) {
+            try {
+              const txHash = await executeSwap(
+                { ...swap, amountUSD },
+                userConfig.smartAccount,
+                userConfig.rules
+              );
+              totalTrades++;
+              console.log(`[MentoGuard] Swap confirmed: ${txHash}`);
+              await sendTelegramMessage(
+                userConfig.telegramChatId,
+                `🔄 Rebalance executed\n\n${reason}\n\nTx: ${txHash}`
+              );
+            } catch (swapErr) {
+              console.warn(`[MentoGuard] Swap failed:`, swapErr);
+              await sendTelegramMessage(
+                userConfig.telegramChatId,
+                `⚠️ Rebalance attempted but failed\n\n${reason}`
+              );
+            }
+          }
+
+        } else if (decision.action === "send_alert") {
+          const emoji = decision.severity === "critical" ? "🚨" : decision.severity === "warning" ? "⚠️" : "ℹ️";
+          await sendTelegramMessage(
+            userConfig.telegramChatId,
+            `${emoji} ${decision.message}`
+          );
+
+        } else {
+          // hold
+          console.log(`[MentoGuard] Holding — ${decision.reason}`);
+        }
       }
 
       await saveAgentState({
@@ -62,7 +135,7 @@ export async function startAgent(): Promise<void> {
     }
   });
 
-  console.log(`[MentoGuard] Running — checking every ${MONITOR_INTERVAL_SECONDS}s`);
+  console.log(`[MentoGuard] Running — Hermes decides every ${MONITOR_INTERVAL_SECONDS}s`);
 }
 
 export async function stopAgent(): Promise<void> {
@@ -80,7 +153,6 @@ export async function stopAgent(): Promise<void> {
   console.log("[MentoGuard] Agent stopped.");
 }
 
-// Auto-start if run directly
 if (process.argv[1] === new URL(import.meta.url).pathname) {
   startAgent().catch(console.error);
 }

@@ -4,10 +4,10 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recha
 import { usePortfolio } from "@/hooks/usePortfolio";
 
 const COLORS: Record<string, string> = {
-  cUSD: "#00d4aa",
-  cEUR: "#3b82f6",
-  cBRL: "#f59e0b",
-  cREAL: "#ec4899",
+  cUSD:  "#FCAA2D",
+  cEUR:  "#525333",
+  cBRL:  "#c48c5a",
+  cREAL: "#8ba5bb",
 };
 
 export function ExposureDonut() {
@@ -20,38 +20,25 @@ export function ExposureDonut() {
   }));
 
   return (
-    <div className="rounded-xl bg-surface border border-border p-5">
-      <h3 className="text-sm font-medium text-text-secondary mb-3">Portfolio</h3>
+    <div className="m-card">
+      <p className="m-label" style={{ marginBottom: "1rem" }}>Portfolio Exposure</p>
       {isLoading ? (
-        <div className="h-40 flex items-center justify-center text-text-secondary text-sm">
-          Loading...
+        <div style={{ height: 160, display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(25,25,24,0.35)", fontSize: "0.8rem" }}>
+          Loading…
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={160}>
           <PieChart>
-            <Pie
-              data={data}
-              cx="50%"
-              cy="50%"
-              innerRadius={45}
-              outerRadius={65}
-              paddingAngle={3}
-              dataKey="value"
-            >
+            <Pie data={data} cx="50%" cy="50%" innerRadius={45} outerRadius={65} paddingAngle={3} dataKey="value">
               {data.map((entry) => (
-                <Cell key={entry.name} fill={COLORS[entry.name] ?? "#888"} />
+                <Cell key={entry.name} fill={COLORS[entry.name] ?? "#ccc"} />
               ))}
             </Pie>
             <Tooltip
               formatter={(v: number, name: string) => [`$${v.toFixed(2)}`, name]}
-              contentStyle={{ background: "#111827", border: "1px solid #1f2937", borderRadius: 8 }}
+              contentStyle={{ background: "#FFFEF2", border: "1px solid rgba(25,25,24,0.12)", borderRadius: 8, fontSize: "0.75rem" }}
             />
-            <Legend
-              formatter={(name) => {
-                const d = data.find((e) => e.name === name);
-                return `${name} ${d?.pct}%`;
-              }}
-            />
+            <Legend formatter={(name) => { const d = data.find((e) => e.name === name); return `${name} ${d?.pct}%`; }} />
           </PieChart>
         </ResponsiveContainer>
       )}

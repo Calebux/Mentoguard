@@ -9,7 +9,7 @@ export const MENTO_TOKENS: Record<string, Address> = {
   cUSD: "0x765DE816845861e75A25fCA122bb6898B8B1282a",
   cEUR: "0xD8763CBa276a3738E6DE85b4b3bF5FDed6D6cA73",
   cBRL: "0xe8537a3d056DA446677B9E9d6c5dB704EaAb4787",
-  cREAL: "0xe6774B619a7B40E3D2A6a3e7a2B4e58E3F37F18D",
+  cREAL: "0xE6774B619A7B40e3D2A6a3e7a2B4E58E3F37f18d",
 };
 
 // ─── Mento Broker (swap router) ──────────────────────────────────────────────

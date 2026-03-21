@@ -30,12 +30,16 @@ export default function DashboardPage() {
 
 function NextActionCard() {
   return (
-    <div className="rounded-xl bg-surface border border-border p-5">
-      <h3 className="text-sm font-medium text-text-secondary mb-3">Next Action</h3>
-      <div className="space-y-2">
-        <p className="font-semibold text-accent-primary">Monitoring...</p>
-        <p className="text-sm text-text-secondary">Next check: 0:42</p>
-        <p className="text-sm text-text-secondary">Drift: 2.1% <span className="text-green-400">(OK)</span></p>
+    <div className="m-card">
+      <p className="m-label" style={{ marginBottom: "1rem" }}>Next Action</p>
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+        <p style={{ fontWeight: 600, color: "#191918" }}>Monitoring…</p>
+        {[["Next check", "0:42"], ["Drift", "2.1%"], ["Status", "OK"]].map(([k, v]) => (
+          <div key={k} style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid rgba(25,25,24,0.07)", paddingBottom: "0.375rem" }}>
+            <span style={{ fontFamily: "var(--font-mono, monospace)", fontSize: "0.7rem", color: "rgba(25,25,24,0.45)" }}>{k}</span>
+            <span style={{ fontFamily: "var(--font-mono, monospace)", fontSize: "0.7rem", fontWeight: 700, color: k === "Status" ? "#16a34a" : "#191918" }}>{v}</span>
+          </div>
+        ))}
       </div>
     </div>
   );

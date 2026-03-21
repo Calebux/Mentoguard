@@ -1,3 +1,7 @@
+import { config } from "dotenv";
+import { resolve } from "path";
+config({ path: resolve(__dirname, "../../../.env") });
+
 import { Telegraf } from "telegraf";
 import { startCommand } from "./commands/start";
 import { statusCommand } from "./commands/status";
@@ -5,6 +9,7 @@ import { portfolioCommand } from "./commands/portfolio";
 import { pauseCommand } from "./commands/pause";
 import { resumeCommand } from "./commands/resume";
 import { historyCommand } from "./commands/history";
+import { askCommand } from "./commands/ask";
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
 if (!token) throw new Error("TELEGRAM_BOT_TOKEN is required");
@@ -18,6 +23,7 @@ bot.command("portfolio", portfolioCommand);
 bot.command("pause", pauseCommand);
 bot.command("resume", resumeCommand);
 bot.command("history", historyCommand);
+bot.command("ask", askCommand);
 
 bot.command("help", (ctx) => {
   ctx.reply(
@@ -30,14 +36,29 @@ bot.command("help", (ctx) => {
       "/pause — Halt the agent",
       "/resume — Restart the agent",
       "/history — Last 10 swaps",
+      "/ask <question> — Ask Hermes about your portfolio",
       "/ens — Agent ENS identity",
     ].join("\n"),
     { parse_mode: "Markdown" }
   );
 });
 
-bot.launch();
-console.log("[MentoGuard Bot] Running...");
+function launch(attempts = 0): void {
+  bot.launch({ dropPendingUpdates: true }).catch(async (err: any) => {
+    if (err?.response?.error_code === 409 && attempts < 5) {
+      const delay = (attempts + 1) * 3000;
+      console.log(`[MentoGuard Bot] 409 conflict, retrying in ${delay / 1000}s...`);
+      await new Promise((r) => setTimeout(r, delay));
+      launch(attempts + 1);
+    } else {
+      console.error("[MentoGuard Bot] Fatal error:", err.message);
+      process.exit(1);
+    }
+  });
+  console.log("[MentoGuard Bot] Running...");
+}
 
-process.once("SIGINT", () => bot.stop("SIGINT"));
-process.once("SIGTERM", () => bot.stop("SIGTERM"));
+launch();
+
+process.once("SIGINT", () => { try { bot.stop("SIGINT"); } catch {} });
+process.once("SIGTERM", () => { try { bot.stop("SIGTERM"); } catch {} });

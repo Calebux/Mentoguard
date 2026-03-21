@@ -7,16 +7,12 @@ export function useFXRates() {
   const { data, isLoading } = useQuery<FXRates>({
     queryKey: ["fx-rates"],
     queryFn: async () => {
-      // In production: fetch from agent API or Mento oracle directly
-      return {
-        cUSD: 1.0,
-        cEUR: 1.08,
-        cBRL: 0.2,
-        cREAL: 0.18,
-        updatedAt: Date.now(),
-      };
+      const res = await fetch("/api/fx-rates");
+      if (!res.ok) throw new Error("Failed to fetch FX rates");
+      return res.json();
     },
     refetchInterval: 30_000,
+    staleTime: 20_000,
   });
 
   return { rates: data, isLoading };

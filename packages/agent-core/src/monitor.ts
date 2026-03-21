@@ -1,5 +1,6 @@
 import { createPublicClient, http, parseAbi, formatUnits } from "viem";
 import { celo } from "viem/chains";
+import Redis from "ioredis";
 import {
   MENTO_TOKENS,
   DEFAULT_TARGET_ALLOCATION,
@@ -26,16 +27,33 @@ const client = createPublicClient({
   transport: http(process.env.CELO_RPC_URL ?? "https://forno.celo.org"),
 });
 
+const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
+
+// Frankfurter is a free, no-key-required forex API backed by the ECB
+// cUSD=USD, cEUR≈EUR/USD, cBRL≈BRL/USD, cREAL≈BRL/USD (same peg)
 export async function fetchFXRates(): Promise<FXRates> {
-  // In production: fetch from Mento oracle + Redstone price feed
-  // For now: return mock rates close to real values
-  return {
-    cUSD: 1.0,
-    cEUR: 1.08,
-    cBRL: 0.2,
-    cREAL: 0.18,
+  const res = await fetch(
+    "https://api.frankfurter.app/latest?base=USD&symbols=EUR,BRL"
+  );
+  if (!res.ok) throw new Error(`Frankfurter API error: ${res.status}`);
+  const data = (await res.json()) as { rates: { EUR: number; BRL: number } };
+
+  const eurUSD  = 1 / data.rates.EUR; // EUR per USD → USD per EUR
+  const brlUSD  = 1 / data.rates.BRL; // BRL per USD → USD per BRL
+
+  const rates: FXRates = {
+    cUSD:  1.0,
+    cEUR:  eurUSD,
+    cBRL:  brlUSD,
+    cREAL: brlUSD, // cREAL also tracks Brazilian Real
     updatedAt: Date.now(),
   };
+
+  await redis.set("mentoguard:fx_rates", JSON.stringify(rates), "EX", 120);
+  console.log(
+    `[monitor] FX rates — cEUR: $${rates.cEUR.toFixed(4)}  cBRL: $${rates.cBRL.toFixed(4)}`
+  );
+  return rates;
 }
 
 export async function fetchPortfolioBalances(
@@ -45,13 +63,18 @@ export async function fetchPortfolioBalances(
 
   const results = await Promise.all(
     tokens.map(async ([token, address]) => {
-      const balance = await client.readContract({
-        address,
-        abi: ERC20_ABI,
-        functionName: "balanceOf",
-        args: [smartAccount],
-      });
-      return { token, address, balance, balanceUSD: 0 };
+      try {
+        const balance = await client.readContract({
+          address,
+          abi: ERC20_ABI,
+          functionName: "balanceOf",
+          args: [smartAccount],
+        });
+        return { token, address, balance, balanceUSD: 0 };
+      } catch {
+        // Token contract may not exist on mainnet — skip with zero balance
+        return { token, address, balance: 0n, balanceUSD: 0 };
+      }
     })
   );
 

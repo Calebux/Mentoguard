@@ -15,6 +15,10 @@ async function uploadToLighthouse(data: unknown): Promise<string> {
   return result.data.Hash as string;
 }
 
+export async function saveLastTick(result: TickResult): Promise<void> {
+  await redis.set("mentoguard:last_tick", JSON.stringify(result), "EX", 300);
+}
+
 export async function logTick(result: TickResult): Promise<string> {
   const entry: AgentMemoryEntry = {
     type: "tick",
