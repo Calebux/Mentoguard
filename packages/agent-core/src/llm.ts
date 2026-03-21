@@ -134,7 +134,7 @@ Rules:
         { role: "user", content: context },
       ],
       tools: TOOLS,
-      tool_choice: "required",
+      tool_choice: "auto",
       temperature: 0.2,
       max_tokens: 1024,
     }),
