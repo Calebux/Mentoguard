@@ -72,7 +72,19 @@ export async function startAgent(): Promise<void> {
       console.log(`[MentoGuard] Tick — asking Hermes to decide...`);
 
       // 2. Decide — Hermes analyzes context and calls tools
-      const decisions = await decideAction(result, userConfig);
+      let decisions = await decideAction(result, userConfig);
+
+      // Override: if drift clearly exceeds threshold but Hermes only sent alerts, force a swap
+      const totalUSDCheck = result.balances.reduce((s, b) => s + b.balanceUSD, 0);
+      const hasSwap = decisions.some(d => d.action === "execute_swap");
+      if (result.shouldRebalance && !hasSwap && totalUSDCheck > 0.01) {
+        const swaps = computeRebalanceSwaps(result.drift, result.currentAllocation, totalUSDCheck);
+        if (swaps.length > 0) {
+          const s = swaps[0];
+          console.log(`[MentoGuard] Overriding alert-only decision — forcing swap`);
+          decisions = [{ action: "execute_swap", fromToken: s.fromToken, toToken: s.toToken, amountUSD: s.amountUSD, reason: "Drift exceeds threshold — forced rebalance" }];
+        }
+      }
 
       // 3. Act — execute whatever Hermes decided
       for (const decision of decisions) {
