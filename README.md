@@ -73,9 +73,18 @@ The agent runs a continuous observe → decide → act loop every 60 seconds:
 - CIDs stored in Redis, retrievable via `/api/activity`
 - Creates a permanent, tamper-proof record of all autonomous decisions
 
-**Sample Filecoin CID** (live tick log — actual FX rates + drift data):
-`bafkreih5gfotjtl6nm6ja7bcjepzvcjbblpwy6y6dxonxoilyala7244iq`
-→ https://gateway.lighthouse.storage/ipfs/bafkreih5gfotjtl6nm6ja7bcjepzvcjbblpwy6y6dxonxoilyala7244iq
+**Verified Filecoin CIDs** — every autonomous decision permanently stored:
+
+| Type | CID |
+|---|---|
+| Tick log (FX rates + drift) | `bafkreih5gfotjtl6nm6ja7bcjepzvcjbblpwy6y6dxonxoilyala7244iq` |
+| Rebalance log + tx hash | `bafkreigmn2s7whz4knzpt2nsz3a74ybrvakoceqfbylqpgfzjwkngacjwa` |
+| Rebalance log + tx hash | `bafkreiaivq53qg67hyqtjiq3awasdjxqrbd3nh7dg4iyacew5vi7fpv4tu` |
+| Rebalance log + tx hash | `bafkreia22xedp6c3ml3kegpijnmjvpwke4prwbjajxpkdxhdwatka2bqey` |
+| Rebalance log + tx hash | `bafkreifhianh4x55h7hepzadoem7ajtaegybie37pzw2ospnrlfn25yz6u` |
+| Rebalance log + tx hash | `bafkreicypu3e5qgfyndn7wu7d5ang57udx3q24rvqkzzhhek5ukdrgziii` |
+
+All retrievable at `https://gateway.lighthouse.storage/ipfs/<CID>`
 
 ### Identity Verification (Self Protocol)
 - Users verify their identity via Self Protocol's ZK passport verification
