@@ -194,11 +194,12 @@ export async function startAgent(): Promise<void> {
         }
       }
 
-      // Auto-deploy idle stablecoins to Aave if not already earning yield
-      // Runs every tick so capital never sits idle after a successful rebalance
+      // Auto-deploy idle stablecoins to Aave only when portfolio is balanced
+      // Gated on !shouldRebalance so funds stay in Aave long enough to earn yield —
+      // depositing during drift would just trigger an immediate withdraw on the next swap
       const AAVE_TOKENS = ["cUSD", "cEUR"] as const;
       const MIN_DEPOSIT_USD = 0.50;
-      for (const token of AAVE_TOKENS) {
+      if (!result.shouldRebalance) for (const token of AAVE_TOKENS) {
         const balance = result.balances.find(b => b.token === token);
         const walletBalanceUSD = balance?.balanceUSD ?? 0;
         const aaveBalanceUSD = aavePositions[token] ?? 0;
