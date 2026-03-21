@@ -89,9 +89,17 @@ export async function startAgent(): Promise<void> {
             ?? swaps[0];
 
           if (swap) {
+            // Cap swap amount to actual available balance of fromToken
+            const fromBalance = result.balances.find(b => b.token === fromToken);
+            const maxAvailable = fromBalance?.balanceUSD ?? 0;
+            const cappedAmount = Math.min(amountUSD, maxAvailable * 0.95); // 95% to leave gas buffer
+            if (cappedAmount < 0.01) {
+              console.warn(`[MentoGuard] Swap skipped — insufficient ${fromToken} balance ($${maxAvailable.toFixed(2)})`);
+              continue;
+            }
             try {
               const txHash = await executeSwap(
-                { ...swap, amountUSD },
+                { ...swap, amountUSD: cappedAmount },
                 userConfig.smartAccount,
                 userConfig.rules
               );
