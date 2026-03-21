@@ -119,7 +119,7 @@ export async function startAgent(): Promise<void> {
               console.log(`[MentoGuard] Swap confirmed: ${txHash}`);
               await sendTelegramMessage(
                 userConfig.telegramChatId,
-                `🔄 Rebalance executed\n\n${reason}\n\nTx: ${txHash}`
+                `🔄 Rebalance executed\n\n${fromToken} → ${toToken} $${cappedAmount.toFixed(2)}\n\nTx: ${txHash}`
               );
             } catch (swapErr) {
               console.warn(`[MentoGuard] Swap failed:`, swapErr);

@@ -1,12 +1,11 @@
 import axios from "axios";
-import { createWalletClient, http, parseUnits } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { celo } from "viem/chains";
+import { parseUnits } from "viem";
 import { CELO_CHAIN_ID } from "@mentoguard/shared";
 import type { SwapInstruction } from "./strategy";
 import { validateDelegationRules } from "./delegation";
 import type { DelegationRules } from "@mentoguard/shared";
 import { logRebalance } from "./memory";
+import { executeMentoSwap } from "./mento";
 
 const UNISWAP_API_URL =
   process.env.UNISWAP_API_URL ?? "https://trade-api.gateway.uniswap.org/v1";
@@ -95,7 +94,23 @@ export async function executeSwap(
   // 1. Validate against delegation rules (throws if violated)
   validateDelegationRules(swap, rules);
 
-  // 2. Get Uniswap quote
+  // 2. Try Mento Broker first (native Celo stablecoin DEX)
+  try {
+    console.log(`[executor] Trying Mento Broker for ${swap.fromToken} → ${swap.toToken}`);
+    const txHash = await executeMentoSwap(
+      swap.fromAddress as `0x${string}`,
+      swap.toAddress as `0x${string}`,
+      swap.amountUSD
+    );
+    logRebalance({ swap, txHash, quote: null, timestamp: Date.now() }).catch(
+      (err) => console.warn("[executor] Filecoin log failed:", err)
+    );
+    return txHash;
+  } catch (mentoErr) {
+    console.warn(`[executor] Mento Broker failed, trying Uniswap:`, mentoErr);
+  }
+
+  // 3. Fallback: Uniswap quote
   const quote = await getUniswapQuote(swap);
   console.log(
     `[executor] Quote: ${swap.fromToken} → ${swap.toToken} | out: ${quote.amountOut} | gas: $${quote.gasUseEstimateUSD}`
