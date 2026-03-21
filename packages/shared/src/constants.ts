@@ -29,11 +29,11 @@ export const ENS_REGISTRY_ADDRESS: Address =
 // ─── Agent Defaults ───────────────────────────────────────────────────────────
 export const DEFAULT_DRIFT_THRESHOLD = 5; // 5%
 export const DEFAULT_TARGET_ALLOCATION = {
-  cUSD: 50,
-  cEUR: 0,
+  cUSD: 45,
+  cEUR: 10,
   cBRL: 0,
   cREAL: 0,
-  CELO: 50,
+  CELO: 45,
 };
 
 export const DEFAULT_DELEGATION_RULES = {

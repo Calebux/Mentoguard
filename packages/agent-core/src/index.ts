@@ -136,11 +136,17 @@ export async function startAgent(): Promise<void> {
                 `🔄 Rebalance executed\n\n${fromToken} → ${toToken} $${cappedAmount.toFixed(2)}\n\nTx: ${txHash}`
               );
             } catch (swapErr) {
+              const errMsg = (swapErr as Error).message ?? "";
+              const isOracleStale = errMsg.includes("no valid median") || errMsg.includes("oracle stale");
               console.warn(`[MentoGuard] Swap failed:`, swapErr);
-              await sendTelegramMessage(
-                userConfig.telegramChatId,
-                `⚠️ Rebalance attempted but failed\n\n${reason}`
-              );
+              if (!isOracleStale) {
+                await sendTelegramMessage(
+                  userConfig.telegramChatId,
+                  `⚠️ Rebalance attempted but failed\n\n${reason}`
+                );
+              } else {
+                console.log(`[MentoGuard] Oracle stale for ${fromToken}→${toToken} — skipping alert, will retry next tick`);
+              }
             }
           }
 
