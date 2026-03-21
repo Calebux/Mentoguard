@@ -24,12 +24,17 @@ const publicClient = createPublicClient({
   transport: http(process.env.CELO_RPC_URL ?? "https://forno.celo.org"),
 });
 
-async function findExchange(tokenIn: `0x${string}`, tokenOut: `0x${string}`): Promise<{ provider: `0x${string}`; exchangeId: `0x${string}` }> {
+async function findAllExchanges(
+  tokenIn: `0x${string}`,
+  tokenOut: `0x${string}`
+): Promise<{ provider: `0x${string}`; exchangeId: `0x${string}` }[]> {
   const providers = await publicClient.readContract({
     address: BROKER_ADDRESS,
     abi: BROKER_ABI,
     functionName: "getExchangeProviders",
   }) as `0x${string}`[];
+
+  const matches: { provider: `0x${string}`; exchangeId: `0x${string}` }[] = [];
 
   for (const provider of providers) {
     const exchanges = await publicClient.readContract({
@@ -41,10 +46,12 @@ async function findExchange(tokenIn: `0x${string}`, tokenOut: `0x${string}`): Pr
     for (const ex of exchanges) {
       const hasIn  = ex.assets.some(a => a.toLowerCase() === tokenIn.toLowerCase());
       const hasOut = ex.assets.some(a => a.toLowerCase() === tokenOut.toLowerCase());
-      if (hasIn && hasOut) return { provider, exchangeId: ex.exchangeId };
+      if (hasIn && hasOut) matches.push({ provider, exchangeId: ex.exchangeId });
     }
   }
-  throw new Error(`No Mento exchange found for ${tokenIn} → ${tokenOut}`);
+
+  if (matches.length === 0) throw new Error(`No Mento exchange found for ${tokenIn} → ${tokenOut}`);
+  return matches;
 }
 
 export async function executeMentoSwap(
@@ -60,19 +67,33 @@ export async function executeMentoSwap(
 
   const amountIn = parseUnits(amountUSD.toFixed(6), 18);
 
-  // Find the exchange
-  const { provider, exchangeId } = await findExchange(tokenIn, tokenOut);
-  console.log(`[mento] Found exchange ${exchangeId} on provider ${provider}`);
+  // Find all exchanges for this pair and pick one whose oracle is active
+  const exchanges = await findAllExchanges(tokenIn, tokenOut);
+  console.log(`[mento] Found ${exchanges.length} exchange(s) for pair`);
 
-  // Get expected output — if oracle is unavailable, swapIn will also revert, so bail early
-  const amountOut = await publicClient.readContract({
-    address: BROKER_ADDRESS,
-    abi: BROKER_ABI,
-    functionName: "getAmountOut",
-    args: [provider, exchangeId, tokenIn, tokenOut, amountIn],
-  }) as bigint;
-  const minOut = (amountOut * 995n) / 1000n; // 0.5% slippage
-  console.log(`[mento] Quote: ${formatUnits(amountIn, 18)} → ${formatUnits(amountOut, 18)}`);
+  let provider!: `0x${string}`;
+  let exchangeId!: `0x${string}`;
+  let minOut = 0n;
+
+  for (const ex of exchanges) {
+    try {
+      const amountOut = await publicClient.readContract({
+        address: BROKER_ADDRESS,
+        abi: BROKER_ABI,
+        functionName: "getAmountOut",
+        args: [ex.provider, ex.exchangeId, tokenIn, tokenOut, amountIn],
+      }) as bigint;
+      minOut = (amountOut * 995n) / 1000n; // 0.5% slippage
+      provider = ex.provider;
+      exchangeId = ex.exchangeId;
+      console.log(`[mento] Oracle OK on exchange ${ex.exchangeId}: ${formatUnits(amountIn, 18)} → ${formatUnits(amountOut, 18)}`);
+      break;
+    } catch {
+      console.warn(`[mento] Exchange ${ex.exchangeId} oracle unavailable, trying next...`);
+    }
+  }
+
+  if (!provider) throw new Error("no valid median — all Mento exchanges have stale oracles");
 
   // Approve broker to spend tokenIn
   const allowance = await publicClient.readContract({
