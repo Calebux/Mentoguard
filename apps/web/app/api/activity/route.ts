@@ -5,9 +5,10 @@ const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
 
 export async function GET() {
   try {
-    const [tickRaw, stateRaw] = await Promise.all([
+    const [tickRaw, stateRaw, reasoningRaw] = await Promise.all([
       redis.get("mentoguard:last_tick"),
       redis.get("mentoguard:agent_state"),
+      redis.get("mentoguard:last_reasoning"),
     ]);
 
     const entries: { id: string; time: string; message: string; type: string }[] = [];
@@ -39,6 +40,16 @@ export async function GET() {
       } else {
         entries.unshift({ id: `tick-ok-${tick.tickAt}`, time, message: "FX tick complete — portfolio balanced", type: "info" });
       }
+    }
+
+    if (reasoningRaw) {
+      const r = JSON.parse(reasoningRaw);
+      entries.push({
+        id: `reasoning-${r.timestamp}`,
+        time: new Date(r.timestamp).toLocaleTimeString(),
+        message: `🧠 Hermes: ${r.text}`,
+        type: "reasoning",
+      });
     }
 
     return NextResponse.json(entries);

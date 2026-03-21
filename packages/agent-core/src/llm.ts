@@ -206,7 +206,9 @@ Market timing guidance:
 - Strong downtrend (>5% 24h): rebalancing into CELO carries momentum risk — require drift to clearly exceed threshold.
 - Stable market: follow the standard drift rules strictly.
 
-IMPORTANT: If drift exceeds threshold, default is execute_swap. Only override with send_alert if market conditions are extreme and drift is marginal.`;
+IMPORTANT: If drift exceeds threshold, default is execute_swap. Only override with send_alert if market conditions are extreme and drift is marginal.
+
+Before calling a tool, briefly state your reasoning in 1-2 sentences — what you observe, what the market signals suggest, and why you chose this action over alternatives.`;
 
   const res = await fetch(`${BASE_URL}/chat/completions`, {
     method: "POST",
@@ -235,10 +237,21 @@ IMPORTANT: If drift exceeds threshold, default is execute_swap. Only override wi
   const data = await res.json() as {
     choices: {
       message: {
+        content?: string;
         tool_calls?: { function: { name: string; arguments: string } }[];
       };
     }[];
   };
+
+  // Capture and persist Hermes's reasoning text (shown in dashboard activity feed)
+  const reasoning = data.choices[0]?.message?.content;
+  if (reasoning?.trim()) {
+    await redis.set("mentoguard:last_reasoning", JSON.stringify({
+      text: reasoning.trim(),
+      timestamp: Date.now(),
+    }), "EX", 300);
+    console.log(`[llm] Hermes reasoning: ${reasoning.trim().slice(0, 120)}...`);
+  }
 
   const toolCalls = data.choices[0]?.message?.tool_calls;
   if (!toolCalls?.length) {

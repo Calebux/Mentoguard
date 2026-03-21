@@ -10,6 +10,7 @@ import { decideAction } from "./llm";
 import { computeRebalanceSwaps } from "./strategy";
 import { executeSwap } from "./executor";
 import { getAavePosition, depositToAave, withdrawFromAave } from "./aave";
+import { fetchOnChainRules } from "./delegation";
 import {
   MONITOR_INTERVAL_SECONDS,
   DEFAULT_TARGET_ALLOCATION,
@@ -69,7 +70,7 @@ export async function startAgent(): Promise<void> {
         ensName: null,
         telegramChatId: process.env.TELEGRAM_CHAT_ID ?? null,
       };
-      const userConfig: UserConfig = stored
+      let userConfig: UserConfig = stored
         ? {
             ...defaultConfig,
             ...stored,
@@ -79,6 +80,14 @@ export async function startAgent(): Promise<void> {
             targetAllocation: { ...DEFAULT_TARGET_ALLOCATION, ...stored.targetAllocation },
           }
         : defaultConfig;
+
+      // Merge on-chain delegation rules (MentoGuardRules contract) with local config
+      const onChainRules = await fetchOnChainRules(userConfig.rules);
+      if (onChainRules.paused) {
+        console.log("[MentoGuard] Agent paused via on-chain contract — skipping tick");
+        return;
+      }
+      userConfig = { ...userConfig, rules: onChainRules };
 
       // 1. Observe — fetch FX rates + portfolio state + Aave positions
       const result = await monitorTick(userConfig);

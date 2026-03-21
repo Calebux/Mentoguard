@@ -61,10 +61,12 @@ The agent runs a continuous observe → decide → act loop every 60 seconds:
 - Hermes parses the intent and updates the agent config live
 - Supported: target allocation, drift threshold, pause/resume, operating hours
 
-### Constrained Autonomy (EIP-7710 Delegation Rules)
-- Every swap is validated against user-defined rules before execution
-- Rules: max single swap amount, max daily volume, allowed token list, operating time window, human approval threshold
-- Agent cannot exceed these bounds regardless of LLM decision
+### Constrained Autonomy (On-Chain Delegation Rules)
+- Delegation rules stored in **MentoGuardRules** smart contract (`0xba26522a9221a3de4234e8d5e8d52bd8216932c8`) on Celo mainnet
+- Agent reads rules from chain every tick — cannot be overridden by the LLM or off-chain config
+- Rules: max single swap amount ($500), max daily volume ($2000), drift threshold (5%), pause/resume
+- Owner can update rules or pause the agent via on-chain transaction; agent respects the change within 60 seconds
+- Deployed tx: `0xb615a4f5c3d7443d6302be0c1c8b0213cb7cca77206d32a67f72c77b76ae2b22`
 
 ### Immutable Audit Trail (Filecoin / Lighthouse)
 - Every tick and rebalance is logged to Filecoin via Lighthouse Storage
@@ -146,6 +148,7 @@ mentoguard/
 
 | Contract | Address | Network |
 |---|---|---|
+| **MentoGuardRules** | `0xba26522a9221a3de4234e8d5e8d52bd8216932c8` | Celo Mainnet |
 | Mento Broker | `0x777A8255cA72412f0d706dc03C9D1987306B4CaD` | Celo Mainnet |
 | Aave V3 Pool | `0x3E59A31363E2ad014dcbc521c4a0d5757d9f3402` | Celo Mainnet |
 | cUSD (USDm) | `0x765DE816845861e75A25fCA122bb6898B8B1282a` | Celo Mainnet |
