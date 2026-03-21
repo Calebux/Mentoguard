@@ -2,8 +2,15 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@mentoguard/shared"],
+  serverExternalPackages: ["@walletconnect/universal-provider", "@walletconnect/ethereum-provider"],
   webpack: (config, { isServer }) => {
-    if (!isServer) {
+    if (isServer) {
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        "@walletconnect/universal-provider": false,
+        "@walletconnect/ethereum-provider": false,
+      };
+    } else {
       // Stub out Node.js-only modules for the browser bundle
       config.resolve.alias = {
         ...config.resolve.alias,
