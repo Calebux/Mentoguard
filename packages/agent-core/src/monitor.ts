@@ -111,9 +111,14 @@ export async function monitorTick(config: UserConfig): Promise<TickResult> {
   const drift = computeDrift(currentAllocation, config.targetAllocation);
   const shouldRebalance = exceedsThreshold(drift, config.driftThreshold);
 
+  const balancesWithUSD = balances.map((b) => ({
+    ...b,
+    balanceUSD: Number(formatUnits(b.balance, 18)) * ((rates[b.token as keyof FXRates] as number) ?? 0),
+  }));
+
   const result: TickResult = {
     rates,
-    balances,
+    balances: balancesWithUSD,
     currentAllocation,
     drift,
     shouldRebalance,
