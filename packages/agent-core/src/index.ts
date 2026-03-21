@@ -9,6 +9,7 @@ import { sendTelegramMessage } from "./notifications";
 import { decideAction } from "./llm";
 import { computeRebalanceSwaps } from "./strategy";
 import { executeSwap } from "./executor";
+import { getAavePosition, depositToAave, withdrawFromAave } from "./aave";
 import {
   MONITOR_INTERVAL_SECONDS,
   DEFAULT_TARGET_ALLOCATION,
@@ -79,14 +80,25 @@ export async function startAgent(): Promise<void> {
           }
         : defaultConfig;
 
-      // 1. Observe — fetch FX rates + portfolio state
+      // 1. Observe — fetch FX rates + portfolio state + Aave positions
       const result = await monitorTick(userConfig);
       saveLastTick(result).catch(() => {});
+
+      // Fetch Aave positions for all tracked tokens
+      const aavePositions: Record<string, number> = {};
+      for (const { token, address } of result.balances) {
+        const rate = (result.rates as Record<string, number>)[token] ?? 0;
+        if (rate > 0) {
+          aavePositions[token] = await getAavePosition(address, smartAccount, rate);
+        }
+      }
+      const totalAaveUSD = Object.values(aavePositions).reduce((s, v) => s + v, 0);
+      if (totalAaveUSD > 0.01) console.log(`[MentoGuard] Aave positions: $${totalAaveUSD.toFixed(2)}`);
 
       console.log(`[MentoGuard] Tick — asking Hermes to decide...`);
 
       // 2. Decide — Hermes analyzes context and calls tools
-      let decisions = await decideAction(result, userConfig);
+      let decisions = await decideAction(result, userConfig, aavePositions);
 
       // Override: if drift clearly exceeds threshold but Hermes only sent alerts, force a swap
       const totalUSDCheck = result.balances.reduce((s, b) => s + b.balanceUSD, 0);
@@ -148,6 +160,25 @@ export async function startAgent(): Promise<void> {
                 console.log(`[MentoGuard] Oracle stale for ${fromToken}→${toToken} — skipping alert, will retry next tick`);
               }
             }
+          }
+
+        } else if (decision.action === "deposit_to_aave" || decision.action === "withdraw_from_aave") {
+          const { token, amountUSD, reason } = decision as { token: string; amountUSD: number; reason: string };
+          const tokenAddress = result.balances.find(b => b.token === token)?.address as `0x${string}` | undefined;
+          if (!tokenAddress) { console.warn(`[MentoGuard] Unknown token for Aave: ${token}`); continue; }
+          try {
+            const txHash = decision.action === "deposit_to_aave"
+              ? await depositToAave(tokenAddress, amountUSD, token)
+              : await withdrawFromAave(tokenAddress, amountUSD, token);
+            totalTrades++;
+            const emoji = decision.action === "deposit_to_aave" ? "🏦" : "💸";
+            const verb = decision.action === "deposit_to_aave" ? "Deposited to Aave" : "Withdrawn from Aave";
+            await sendTelegramMessage(
+              userConfig.telegramChatId,
+              `${emoji} ${verb}\n\n${token} $${amountUSD.toFixed(2)} — ${reason}\n\nTx: ${txHash}`
+            );
+          } catch (err) {
+            console.warn(`[MentoGuard] Aave ${decision.action} failed:`, err);
           }
 
         } else if (decision.action === "send_alert") {

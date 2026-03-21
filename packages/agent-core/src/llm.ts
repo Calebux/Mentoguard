@@ -46,6 +46,38 @@ const TOOLS = [
   {
     type: "function",
     function: {
+      name: "deposit_to_aave",
+      description: "Deposit idle stablecoins into Aave V3 on Celo to earn yield. Use when portfolio is balanced and a token has more balance than needed.",
+      parameters: {
+        type: "object",
+        properties: {
+          token:     { type: "string", enum: ["cUSD", "cEUR", "CELO"], description: "Token to deposit" },
+          amountUSD: { type: "number", description: "USD value to deposit" },
+          reason:    { type: "string", description: "Why depositing — e.g. earning yield on idle cUSD" },
+        },
+        required: ["token", "amountUSD", "reason"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "withdraw_from_aave",
+      description: "Withdraw stablecoins from Aave V3 back to wallet. Use before a swap if wallet balance is insufficient.",
+      parameters: {
+        type: "object",
+        properties: {
+          token:     { type: "string", enum: ["cUSD", "cEUR", "CELO"], description: "Token to withdraw" },
+          amountUSD: { type: "number", description: "USD value to withdraw" },
+          reason:    { type: "string", description: "Why withdrawing" },
+        },
+        required: ["token", "amountUSD", "reason"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "hold",
       description: "Take no action this tick. Use when the portfolio is within acceptable bounds or conditions don't warrant action.",
       parameters: {
@@ -80,13 +112,21 @@ export interface HoldDecision {
   reason: string;
 }
 
-export type AgentDecision = SwapDecision | AlertDecision | HoldDecision;
+export interface AaveDecision {
+  action: "deposit_to_aave" | "withdraw_from_aave";
+  token: string;
+  amountUSD: number;
+  reason: string;
+}
+
+export type AgentDecision = SwapDecision | AlertDecision | HoldDecision | AaveDecision;
 
 // ─── Decision loop ────────────────────────────────────────────────────────────
 
 export async function decideAction(
   result: TickResult,
-  config: UserConfig
+  config: UserConfig,
+  aavePositions?: Record<string, number>
 ): Promise<AgentDecision[]> {
   const totalUSD = result.balances.reduce((s, b) => s + b.balanceUSD, 0);
 
@@ -101,6 +141,10 @@ export async function decideAction(
       yieldContext = `\nYield opportunities on Celo:\n  cUSD: ${fmt(yields.cUSD)}\n  cEUR: ${fmt(yields.cEUR)}`;
     }
   } catch {}
+
+  const aaveContext = aavePositions && Object.values(aavePositions).some(v => v > 0)
+    ? `\nAave V3 positions (earning yield):\n${Object.entries(aavePositions).map(([t, v]) => `  ${t}: $${v.toFixed(2)}`).join("\n")}`
+    : "\nAave V3 positions: none (idle funds not earning yield)";
 
   const context = `
 Portfolio value: $${totalUSD.toFixed(2)}
@@ -126,6 +170,7 @@ User rules:
   Max single swap: $${config.rules.maxSwapAmountUSD}
   Max daily volume: $${config.rules.maxDailyVolumeUSD}
 ${yieldContext}
+${aaveContext}
 `.trim();
 
   const systemPrompt = `You are MentoGuard, an autonomous FX hedging agent for Celo stablecoins.
@@ -182,6 +227,8 @@ IMPORTANT: If drift exceeds threshold, you MUST call execute_swap — not send_a
       decisions.push({ action: "execute_swap", ...args });
     } else if (call.function.name === "send_alert") {
       decisions.push({ action: "send_alert", ...args });
+    } else if (call.function.name === "deposit_to_aave" || call.function.name === "withdraw_from_aave") {
+      decisions.push({ action: call.function.name, token: args.token, amountUSD: args.amountUSD, reason: args.reason });
     } else {
       decisions.push({ action: "hold", reason: args.reason ?? "Holding" });
     }
