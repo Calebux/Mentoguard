@@ -18,6 +18,7 @@ async function fetchFromForex(): Promise<FXRates> {
     cEUR:  eurUSD,
     cBRL:  brlUSD,
     cREAL: brlUSD,
+    CELO:  0.5, // fallback price; agent-core will overwrite with live CoinGecko price
     updatedAt: Date.now(),
   };
 }
@@ -33,7 +34,7 @@ export async function GET() {
     return NextResponse.json(rates);
   } catch (err) {
     console.error("[api/fx-rates]", err);
-    const fallback: FXRates = { cUSD: 1.0, cEUR: 1.08, cBRL: 0.2, cREAL: 0.18, updatedAt: Date.now() };
+    const fallback: FXRates = { cUSD: 1.0, cEUR: 1.08, cBRL: 0.2, cREAL: 0.18, CELO: 0.5, updatedAt: Date.now() };
     return NextResponse.json(fallback);
   }
 }

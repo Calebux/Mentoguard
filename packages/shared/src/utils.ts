@@ -20,6 +20,7 @@ export function computeDrift(
     cEUR: current.cEUR - target.cEUR,
     cBRL: current.cBRL - target.cBRL,
     cREAL: current.cREAL - target.cREAL,
+    CELO: current.CELO - target.CELO,
   };
 }
 

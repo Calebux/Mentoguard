@@ -32,26 +32,34 @@ const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
 // Frankfurter is a free, no-key-required forex API backed by the ECB
 // cUSD=USD, cEUR≈EUR/USD, cBRL≈BRL/USD, cREAL≈BRL/USD (same peg)
 export async function fetchFXRates(): Promise<FXRates> {
-  const res = await fetch(
-    "https://api.frankfurter.app/latest?base=USD&symbols=EUR,BRL"
-  );
-  if (!res.ok) throw new Error(`Frankfurter API error: ${res.status}`);
-  const data = (await res.json()) as { rates: { EUR: number; BRL: number } };
+  const [fxRes, celoRes] = await Promise.all([
+    fetch("https://api.frankfurter.app/latest?base=USD&symbols=EUR,BRL"),
+    fetch("https://api.coingecko.com/api/v3/simple/price?ids=celo&vs_currencies=usd"),
+  ]);
 
-  const eurUSD  = 1 / data.rates.EUR; // EUR per USD → USD per EUR
-  const brlUSD  = 1 / data.rates.BRL; // BRL per USD → USD per BRL
+  if (!fxRes.ok) throw new Error(`Frankfurter API error: ${fxRes.status}`);
+  const data = (await fxRes.json()) as { rates: { EUR: number; BRL: number } };
+  const eurUSD  = 1 / data.rates.EUR;
+  const brlUSD  = 1 / data.rates.BRL;
+
+  let celoUSD = 0.5; // fallback if CoinGecko is unavailable
+  if (celoRes.ok) {
+    const celoData = (await celoRes.json()) as { celo?: { usd?: number } };
+    celoUSD = celoData.celo?.usd ?? celoUSD;
+  }
 
   const rates: FXRates = {
     cUSD:  1.0,
     cEUR:  eurUSD,
     cBRL:  brlUSD,
-    cREAL: brlUSD, // cREAL also tracks Brazilian Real
+    cREAL: brlUSD,
+    CELO:  celoUSD,
     updatedAt: Date.now(),
   };
 
   await redis.set("mentoguard:fx_rates", JSON.stringify(rates), "EX", 120);
   console.log(
-    `[monitor] FX rates — cEUR: $${rates.cEUR.toFixed(4)}  cBRL: $${rates.cBRL.toFixed(4)}`
+    `[monitor] FX rates — cEUR: $${rates.cEUR.toFixed(4)}  cBRL: $${rates.cBRL.toFixed(4)}  CELO: $${rates.CELO.toFixed(4)}`
   );
   return rates;
 }
@@ -93,11 +101,14 @@ export function computeAllocation(
   const totalUSD = usdValues.reduce((s, v) => s + (v.usd as number), 0);
   if (totalUSD === 0) return DEFAULT_TARGET_ALLOCATION;
 
+  const pct = (token: string) =>
+    ((usdValues.find((v) => v.token === token)?.usd ?? 0) as number / totalUSD) * 100;
   return {
-    cUSD: ((usdValues.find((v) => v.token === "cUSD")?.usd ?? 0) as number / totalUSD) * 100,
-    cEUR: ((usdValues.find((v) => v.token === "cEUR")?.usd ?? 0) as number / totalUSD) * 100,
-    cBRL: ((usdValues.find((v) => v.token === "cBRL")?.usd ?? 0) as number / totalUSD) * 100,
-    cREAL: ((usdValues.find((v) => v.token === "cREAL")?.usd ?? 0) as number / totalUSD) * 100,
+    cUSD:  pct("cUSD"),
+    cEUR:  pct("cEUR"),
+    cBRL:  pct("cBRL"),
+    cREAL: pct("cREAL"),
+    CELO:  pct("CELO"),
   };
 }
 

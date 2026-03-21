@@ -10,6 +10,8 @@ export const MENTO_TOKENS: Record<string, Address> = {
   cEUR: "0xD8763CBa276a3738E6DE85b4b3bF5FDed6D6cA73",
   cBRL: "0xe8537a3d056DA446677B9E9d6c5dB704EaAb4787",
   cREAL: "0xE6774B619A7B40e3D2A6a3e7a2B4E58E3F37f18d",
+  // Wrapped CELO (ERC-20 representation of native CELO)
+  CELO: "0x471EcE3750Da237f93B8E339c536989b8978a438",
 };
 
 // ─── Mento Broker (swap router) ──────────────────────────────────────────────
@@ -28,9 +30,10 @@ export const ENS_REGISTRY_ADDRESS: Address =
 export const DEFAULT_DRIFT_THRESHOLD = 5; // 5%
 export const DEFAULT_TARGET_ALLOCATION = {
   cUSD: 50,
-  cEUR: 50,
+  cEUR: 0,
   cBRL: 0,
   cREAL: 0,
+  CELO: 50,
 };
 
 export const DEFAULT_DELEGATION_RULES = {

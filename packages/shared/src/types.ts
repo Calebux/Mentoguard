@@ -2,7 +2,7 @@ import type { Address } from "viem";
 
 // ─── Token types ────────────────────────────────────────────────────────────
 
-export type MentoToken = "cUSD" | "cEUR" | "cBRL" | "cREAL";
+export type MentoToken = "cUSD" | "cEUR" | "cBRL" | "cREAL" | "CELO";
 
 export interface TokenBalance {
   token: MentoToken;
@@ -23,6 +23,7 @@ export interface FXRates {
   cEUR: number;
   cBRL: number;
   cREAL: number;
+  CELO: number;
   updatedAt: number; // unix timestamp
 }
 
@@ -46,6 +47,7 @@ export interface TargetAllocation {
   cEUR: number;
   cBRL: number;
   cREAL: number;
+  CELO: number;
 }
 
 export interface DelegationRules {
@@ -108,6 +110,7 @@ export interface DriftMap {
   cEUR: number;
   cBRL: number;
   cREAL: number;
+  CELO: number;
 }
 
 export interface TickResult {

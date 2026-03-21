@@ -2,8 +2,8 @@
 
 import { useFXRates } from "@/hooks/useFXRates";
 
-const TOKENS = ["cUSD", "cEUR", "cBRL", "cREAL"] as const;
-const PREV_RATES: Record<string, number> = { cUSD: 1.0, cEUR: 1.075, cBRL: 0.198, cREAL: 0.179 };
+const TOKENS = ["cUSD", "cEUR", "cBRL", "cREAL", "CELO"] as const;
+const PREV_RATES: Record<string, number> = { cUSD: 1.0, cEUR: 1.075, cBRL: 0.198, cREAL: 0.179, CELO: 0.50 };
 
 export function FXRateHeatmap() {
   const { rates, isLoading } = useFXRates();
@@ -17,7 +17,7 @@ export function FXRateHeatmap() {
         </span>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "0.75rem" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: "0.75rem" }}>
         {TOKENS.map((token) => {
           const rate   = rates?.[token] ?? 0;
           const prev   = PREV_RATES[token] ?? rate;

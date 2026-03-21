@@ -8,6 +8,7 @@ const COLORS: Record<string, string> = {
   cEUR:  "#525333",
   cBRL:  "#c48c5a",
   cREAL: "#8ba5bb",
+  CELO:  "#35D07F",
 };
 
 export function ExposureDonut() {

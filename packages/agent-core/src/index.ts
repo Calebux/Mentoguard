@@ -69,7 +69,14 @@ export async function startAgent(): Promise<void> {
         telegramChatId: process.env.TELEGRAM_CHAT_ID ?? null,
       };
       const userConfig: UserConfig = stored
-        ? { ...defaultConfig, ...stored, smartAccount, telegramChatId: stored.telegramChatId ?? defaultConfig.telegramChatId }
+        ? {
+            ...defaultConfig,
+            ...stored,
+            smartAccount,
+            telegramChatId: stored.telegramChatId ?? defaultConfig.telegramChatId,
+            // Ensure new token fields (e.g. CELO) present in stored configs from before the upgrade
+            targetAllocation: { ...DEFAULT_TARGET_ALLOCATION, ...stored.targetAllocation },
+          }
         : defaultConfig;
 
       // 1. Observe — fetch FX rates + portfolio state
