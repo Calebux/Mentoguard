@@ -2,7 +2,7 @@ import type { TickResult, UserConfig } from "@mentoguard/shared";
 
 const BASE_URL = process.env.HERMES_BASE_URL ?? "https://inference-api.nousresearch.com/v1";
 const API_KEY  = process.env.HERMES_API_KEY ?? "";
-const MODEL    = process.env.HERMES_MODEL ?? "hermes-4-70b";
+const MODEL    = process.env.HERMES_MODEL || "hermes-4-70b";
 
 // ─── Tool definitions ────────────────────────────────────────────────────────
 
