@@ -74,9 +74,11 @@ A record of the key decisions, pivots, and breakthroughs from building MentoGuar
 
 The cEUR oracle came back live. Full FX hedging working as originally designed.
 
-**Two confirmed mainnet transactions:**
+**11+ confirmed mainnet transactions** — agent running autonomously, rebalancing both CELO↔cUSD and cUSD↔cEUR pairs every 60 seconds. Sample:
 - CELO → cUSD: `0xe01b1a140bfd2c9727f41b0c068689d494a17bdc4fecb7ade66ef29f9c3f87a0`
 - cUSD → cEUR: `0xacca0898d48e68cde32be6dbdb22fbc416b3928d26b03b883b5f4bb82862417a`
+- cUSD → cEUR: `0x29477d43e85eef6db5c8530808e20cf7ac2e3c50c695caeb36da191978b2f78c`
+- CELO → cUSD: `0x0fffcce0e9b631a3720c255eea97f48f0be6a0d3a3d6ca55cba04e0fbb185809`
 
 ---
 

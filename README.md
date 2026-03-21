@@ -6,9 +6,21 @@ MentoGuard is an AI-powered autonomous agent that manages a dual-purpose portfol
 
 **Live Demo:** https://mentoguard.vercel.app
 **Telegram Bot:** [@MentoGuardBot](https://t.me/MentoGuardBot)
-**Confirmed On-Chain Swaps (Celo Mainnet):**
-- CELO → cUSD: `0xe01b1a140bfd2c9727f41b0c068689d494a17bdc4fecb7ade66ef29f9c3f87a0`
-- cUSD → cEUR: `0xacca0898d48e68cde32be6dbdb22fbc416b3928d26b03b883b5f4bb82862417a`
+**Confirmed On-Chain Swaps (Celo Mainnet):** 11+ autonomous transactions executed across CELO↔cUSD and cUSD↔cEUR pairs — agent is live and running.
+
+| Pair | Tx Hash |
+|---|---|
+| CELO → cUSD | `0xe01b1a140bfd2c9727f41b0c068689d494a17bdc4fecb7ade66ef29f9c3f87a0` |
+| cUSD → cEUR | `0xacca0898d48e68cde32be6dbdb22fbc416b3928d26b03b883b5f4bb82862417a` |
+| cUSD → cEUR | `0x9afb15a9472ed380158d712a8f57891621c91a8ba6f749a7d405dc582d04d70e` |
+| cUSD → cEUR | `0x7e8481fc98f51544292a4ea2e708b22999754144d5e19e93b3aece28856a6894` |
+| cUSD → cEUR | `0xc74ab042110259de1d1050f630cb376addfe2125816f077a896236f1a009610b` |
+| CELO → cUSD | `0xaf1a90a9075c6476157d520b333cf9ce08ce5459206bd96076d1a8ce242ba004` |
+| cUSD → cEUR | `0x09a8503d2f3ebbf94bec9b8c4c73a5dd6c871c5c52ec1d0765b9b1f4000ba8af` |
+| CELO → cUSD | `0xef34e1de907c4206de5af4d7f036615e60c2f03d148b18f567502096dcf2f5f0` |
+| cUSD → cEUR | `0x29477d43e85eef6db5c8530808e20cf7ac2e3c50c695caeb36da191978b2f78c` |
+| CELO → cUSD | `0x8228bbc56123a286cb209a4ecf7d169946570e1960bc80a868fed7c12ba942be` |
+| CELO → cUSD | `0x0fffcce0e9b631a3720c255eea97f48f0be6a0d3a3d6ca55cba04e0fbb185809` |
 
 ---
 
