@@ -1,16 +1,156 @@
 # MentoGuard
 
-**Autonomous FX hedging and yield optimization agent for Celo stablecoins.**
+**An AI agent that cannot exceed the rules you set on-chain. Autonomy with a hard limit.**
 
-MentoGuard is an AI-powered autonomous agent that manages a dual-purpose portfolio: **CELO acts as the active hedge instrument** — rebalanced continuously against stablecoins as its price moves — while **cUSD and cEUR are the yield instruments** — deposited into Aave V3 during balanced periods to earn passive interest. The agent coordinates both roles simultaneously, 24/7, without manual intervention.
+AI agents acting on your money is terrifying. You can't audit an LLM. You can't trust it won't go rogue. The solution isn't better AI — it's constraining the AI with rules it physically cannot bypass.
+
+MentoGuard is a live, autonomous DeFi agent running on Celo mainnet. Every action it takes is validated against rules stored on-chain before execution. The LLM decides. The chain enforces.
 
 **Live Demo:** https://mentoguard.vercel.app
 **Telegram Bot:** [@MentoGuardBot](https://t.me/MentoGuardBot)
-**Confirmed On-Chain Activity (Celo Mainnet):** 13+ autonomous transactions — rebalancing swaps and Aave yield deployment both live.
+**13+ confirmed mainnet transactions — all within user-defined on-chain limits.**
 
-**Yield deployment:** cUSD → Aave V3 `0xeba6b17715d3185becdc816d924f60cb8ceecdcd38eda06b2c740b298f44408c`
+---
 
-| Pair | Tx Hash |
+## The Problem
+
+Autonomous AI agents managing real money introduce a new class of risk: the agent acts faster than you can react. An LLM that decides to "rebalance aggressively" at 3am, or drains a wallet chasing yield, is not science fiction — it's the default behavior of any unconstrained agent.
+
+The standard answer is off-chain guardrails: environment variables, middleware checks, rate limits in code. These are breakable. They live in the same process as the agent. They can be overridden by a sufficiently persuasive prompt.
+
+**MentoGuard's answer: put the rules on-chain, where the agent has to read them before every action.**
+
+---
+
+## The Solution: Constrained Autonomy
+
+MentoGuard separates the decision layer from the permission layer:
+
+```
+LLM decides what to do → Chain verifies it's allowed → Agent executes (or refuses)
+```
+
+Rules are stored in the **MentoGuardRules** smart contract on Celo mainnet. The agent reads them every tick. It cannot execute a swap that violates them — not because of an `if` statement in application code, but because the contract is the authority.
+
+```typescript
+// delegation.ts — called before every swap
+const rules = await readRulesFromChain();
+
+if (amountUSD > rules.maxSwapAmountUSD) {
+  throw new Error(`Swap $${amountUSD} exceeds on-chain limit $${rules.maxSwapAmountUSD}`);
+}
+if (dailyVolume + amountUSD > rules.maxDailyVolumeUSD) {
+  throw new Error(`Daily volume limit reached`);
+}
+if (!rules.allowedTokens.includes(tokenIn)) {
+  throw new Error(`Token not in on-chain allowlist`);
+}
+```
+
+The owner can update rules or pause the agent via on-chain transaction. The agent respects the change within 60 seconds — no redeployment, no restart.
+
+### On-Chain Rules (MentoGuardRules contract)
+
+```typescript
+{
+  maxSwapAmountUSD: 500,        // Max single swap — enforced on-chain
+  maxDailyVolumeUSD: 2000,      // Max daily trading volume — enforced on-chain
+  allowedTokens: [              // Token allowlist — enforced on-chain
+    "0x765DE8...",  // cUSD
+    "0xD8763C...",  // cEUR
+    "0x471ECE...",  // CELO
+  ],
+  driftThreshold: 500,          // 5% — minimum drift before rebalancing
+  isPaused: false               // Emergency stop — one tx to halt everything
+}
+```
+
+**MentoGuardRules contract:** `0xba26522a9221a3de4234e8d5e8d52bd8216932c8` — Celo Mainnet
+**Deploy tx:** `0xb615a4f5c3d7443d6302be0c1c8b0213cb7cca77206d32a67f72c77b76ae2b22`
+
+---
+
+## Identity Layer: Self Protocol
+
+Users verify their identity via Self Protocol's ZK passport verification. Verified status unlocks higher delegation limits — the agent trusts real humans with more autonomy.
+
+This creates a graduated trust model:
+- **Unverified:** conservative limits ($100 max swap, $500 daily)
+- **Self-verified human:** full limits ($500 max swap, $2000 daily)
+
+Verification is stored on-chain. The agent reads it. No off-chain config needed.
+
+---
+
+## Audit Trail: Filecoin
+
+Every tick and every decision is logged to Filecoin via Lighthouse Storage — a permanent, tamper-proof record of what the agent did, when, and why.
+
+This is not optional telemetry. It's accountability infrastructure. If the agent acts unexpectedly, you can pull the exact context it received and the exact decision it made.
+
+**Verified Filecoin CIDs — every autonomous decision permanently stored:**
+
+| Type | CID |
+|---|---|
+| Tick log (FX rates + drift) | `bafkreih5gfotjtl6nm6ja7bcjepzvcjbblpwy6y6dxonxoilyala7244iq` |
+| Rebalance log + tx hash | `bafkreigmn2s7whz4knzpt2nsz3a74ybrvakoceqfbylqpgfzjwkngacjwa` |
+| Rebalance log + tx hash | `bafkreiaivq53qg67hyqtjiq3awasdjxqrbd3nh7dg4iyacew5vi7fpv4tu` |
+| Rebalance log + tx hash | `bafkreia22xedp6c3ml3kegpijnmjvpwke4prwbjajxpkdxhdwatka2bqey` |
+| Rebalance log + tx hash | `bafkreifhianh4x55h7hepzadoem7ajtaegybie37pzw2ospnrlfn25yz6u` |
+| Rebalance log + tx hash | `bafkreicypu3e5qgfyndn7wu7d5ang57udx3q24rvqkzzhhek5ukdrgziii` |
+
+All retrievable at `https://gateway.lighthouse.storage/ipfs/<CID>`
+
+---
+
+## What the Agent Does
+
+Within its constrained permission set, MentoGuard runs a continuous **observe → decide → act** loop every 60 seconds:
+
+1. **Observe** — Fetches live FX rates (EUR/USD, BRL/USD), reads on-chain token balances (cUSD, cEUR, CELO), checks Aave V3 yield positions, fetches DeFiLlama APY data.
+
+2. **Decide** — Passes full portfolio context to Hermes (NousResearch Hermes-4-70B) via function calling. Hermes weighs portfolio drift, FX rates, 24h CELO price momentum, and yield opportunities. Makes a market-aware decision: not just "drift > threshold → swap" but "drift > threshold AND momentum is favorable → swap."
+
+3. **Act** — Executes on-chain within the rules:
+   - Swaps via **Mento Broker** (`0x777A8255cA72412f0d706dc03C9D1987306B4CaD`) with automatic two-hop fallback via CELO
+   - Deposits to / withdraws from **Aave V3 on Celo** to earn yield on idle stablecoins
+   - Sends **Telegram notifications** for every action
+   - Logs every decision to **Filecoin**
+
+### Agent Decision Logic
+
+Hermes receives this context every tick:
+
+```
+Portfolio value: $X.XX
+Current allocation:
+  cUSD:  XX.XX% (target: 45%)
+  cEUR:  XX.XX% (target: 10%)
+  CELO:  XX.XX% (target: 45%)
+
+Drift from target:
+  cUSD:  +X.XX%
+  CELO:  +X.XX%
+
+FX rates: cEUR=$1.1555, CELO=$0.48
+Market signals (24h): CELO ▼3.21% (mild downtrend)
+Aave V3 positions: cUSD $0.62 earning yield
+On-chain rules: maxSwap=$500, dailyVolume=$2000, paused=false
+```
+
+Decision outcomes:
+- **CELO drifting + downtrend** → hold, send alert
+- **CELO drifting + uptrend** → rebalance immediately
+- **Portfolio balanced + stablecoins idle** → deploy to Aave
+- **Rebalance needed + funds in Aave** → withdraw from Aave, then swap
+
+---
+
+## Confirmed On-Chain Activity
+
+All transactions on Celo Mainnet. All within on-chain limits. All logged to Filecoin.
+
+| Action | Tx Hash |
 |---|---|
 | CELO → cUSD | `0xe01b1a140bfd2c9727f41b0c068689d494a17bdc4fecb7ade66ef29f9c3f87a0` |
 | cUSD → cEUR | `0xacca0898d48e68cde32be6dbdb22fbc416b3928d26b03b883b5f4bb82862417a` |
@@ -24,94 +164,33 @@ MentoGuard is an AI-powered autonomous agent that manages a dual-purpose portfol
 | CELO → cUSD | `0x8228bbc56123a286cb209a4ecf7d169946570e1960bc80a868fed7c12ba942be` |
 | CELO → cUSD | `0x0fffcce0e9b631a3720c255eea97f48f0be6a0d3a3d6ca55cba04e0fbb185809` |
 | CELO → cUSD | `0x9e6649d2b4798c25931f906515465d47c634a115d2897708fbbfee24475ef5ff` |
-
----
-
-## What It Does
-
-The agent runs a continuous observe → decide → act loop every 60 seconds:
-
-1. **Observe** — Fetches live FX rates (EUR/USD, BRL/USD via Frankfurter API), reads on-chain token balances (cUSD, cEUR, CELO), checks Aave V3 positions, and fetches DeFi yield rates from DeFiLlama.
-
-2. **Decide** — Passes full portfolio context to Hermes (NousResearch Hermes-4-70B LLM via function calling). Context includes portfolio drift, live FX rates, 24h price momentum (CELO), yield opportunities, and current Aave positions. Hermes weighs market conditions against drift thresholds — e.g. delaying a CELO buy during a strong downtrend — and chooses from: `execute_swap`, `deposit_to_aave`, `withdraw_from_aave`, or `hold`.
-
-3. **Act** — Executes the decision on-chain:
-   - Swaps via **Mento Broker** (native Celo stablecoin DEX) with automatic fallback to two-hop routing via CELO
-   - Deposits to / withdraws from **Aave V3 on Celo** to earn yield on idle stablecoins
-   - Sends **Telegram notifications** for every action
-
----
-
-## Key Features
-
-### CELO as the Hedge Instrument
-- CELO is the active rebalancing asset — its price volatility is what creates drift and triggers swaps
-- Monitors portfolio drift from user-defined target (default: 45% cUSD, 10% cEUR, 45% CELO)
-- Hermes weighs **24h price momentum** before buying into CELO: delays rebalancing during strong downtrends, accelerates during uptrends
-- Executes swaps via Mento Broker (`0x777A8255cA72412f0d706dc03C9D1987306B4CaD`) with two-hop fallback via CELO when a direct oracle is unavailable
-
-### cUSD/cEUR as Yield Instruments
-- Stablecoins drift slowly (EUR/USD moves ~0.5%/day) — they spend most of their time in balance
-- When portfolio is balanced, idle cUSD and cEUR are **automatically deployed to Aave V3** (`0x3E59A31363E2ad014dcbc521c4a0d5757d9f3402`) to earn yield
-- Yield accumulates continuously via aTokens; agent reads live APY from DeFiLlama to confirm best available rate
-- Before a rebalance swap, agent automatically withdraws the required amount from Aave — stablecoins are never locked
-
-### Natural Language Configuration
-- Users send plain text to the Telegram bot: *"set target to 60% cUSD 40% cEUR"*
-- Hermes parses the intent and updates the agent config live
-- Supported: target allocation, drift threshold, pause/resume, operating hours
-
-### Constrained Autonomy (On-Chain Delegation Rules)
-- Delegation rules stored in **MentoGuardRules** smart contract (`0xba26522a9221a3de4234e8d5e8d52bd8216932c8`) on Celo mainnet
-- Agent reads rules from chain every tick — cannot be overridden by the LLM or off-chain config
-- Rules: max single swap amount ($500), max daily volume ($2000), drift threshold (5%), pause/resume
-- Owner can update rules or pause the agent via on-chain transaction; agent respects the change within 60 seconds
-- Deployed tx: `0xb615a4f5c3d7443d6302be0c1c8b0213cb7cca77206d32a67f72c77b76ae2b22`
-
-### Immutable Audit Trail (Filecoin / Lighthouse)
-- Every tick and rebalance is logged to Filecoin via Lighthouse Storage
-- CIDs stored in Redis, retrievable via `/api/activity`
-- Creates a permanent, tamper-proof record of all autonomous decisions
-
-**Verified Filecoin CIDs** — every autonomous decision permanently stored:
-
-| Type | CID |
-|---|---|
-| Tick log (FX rates + drift) | `bafkreih5gfotjtl6nm6ja7bcjepzvcjbblpwy6y6dxonxoilyala7244iq` |
-| Rebalance log + tx hash | `bafkreigmn2s7whz4knzpt2nsz3a74ybrvakoceqfbylqpgfzjwkngacjwa` |
-| Rebalance log + tx hash | `bafkreiaivq53qg67hyqtjiq3awasdjxqrbd3nh7dg4iyacew5vi7fpv4tu` |
-| Rebalance log + tx hash | `bafkreia22xedp6c3ml3kegpijnmjvpwke4prwbjajxpkdxhdwatka2bqey` |
-| Rebalance log + tx hash | `bafkreifhianh4x55h7hepzadoem7ajtaegybie37pzw2ospnrlfn25yz6u` |
-| Rebalance log + tx hash | `bafkreicypu3e5qgfyndn7wu7d5ang57udx3q24rvqkzzhhek5ukdrgziii` |
-
-All retrievable at `https://gateway.lighthouse.storage/ipfs/<CID>`
-
-### Identity Verification (Self Protocol)
-- Users verify their identity via Self Protocol's ZK passport verification
-- Verified status unlocks higher delegation rule limits
-- Verification stored on-chain via Self Protocol's smart contract
+| cUSD → Aave V3 (yield) | `0xeba6b17715d3185becdc816d924f60cb8ceecdcd38eda06b2c740b298f44408c` |
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        MentoGuard Agent                         │
-│                                                                 │
-│  ┌──────────┐    ┌──────────────┐    ┌──────────────────────┐  │
-│  │ Monitor  │───▶│ Hermes LLM   │───▶│ Executor             │  │
-│  │          │    │ (Decide)     │    │                      │  │
-│  │ FX Rates │    │ Function     │    │ Mento Broker (swap)  │  │
-│  │ Balances │    │ Calling      │    │ Aave V3 (yield)      │  │
-│  │ Aave Pos │    │              │    │ Filecoin (log)       │  │
-│  │ DeFi APY │    └──────────────┘    └──────────────────────┘  │
-│  └──────────┘                                                   │
-└─────────────────────────────────────────────────────────────────┘
-         │                                          │
-         ▼                                          ▼
-   Redis (state)                          Celo Mainnet
-   Telegram (alerts)                      (transactions)
+┌─────────────────────────────────────────────────────────────────────┐
+│                         MentoGuard Agent                            │
+│                                                                     │
+│  ┌──────────┐    ┌──────────────┐    ┌──────────────────────────┐   │
+│  │ Monitor  │───▶│  Hermes LLM  │───▶│ Delegation Check         │   │
+│  │          │    │  (Decide)    │    │ (reads MentoGuardRules)  │   │
+│  │ FX Rates │    │  Function    │    └────────────┬─────────────┘   │
+│  │ Balances │    │  Calling     │                 │ allowed?        │
+│  │ Aave Pos │    └──────────────┘                 ▼                 │
+│  │ DeFi APY │                          ┌──────────────────────────┐ │
+│  └──────────┘                          │ Executor                 │ │
+│                                        │ Mento Broker (swap)      │ │
+│                                        │ Aave V3 (yield)          │ │
+│                                        │ Filecoin (log)           │ │
+│                                        └──────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────┘
+         │                                              │
+         ▼                                              ▼
+   Redis (state)                              Celo Mainnet
+   Telegram (alerts)                          (transactions)
    Dashboard (UI)
 ```
 
@@ -124,40 +203,41 @@ mentoguard/
 │   └── telegram/         # Telegraf bot (Railway)
 ├── packages/
 │   ├── agent-core/       # Agent loop, LLM, execution (Railway)
-│   │   ├── src/
-│   │   │   ├── index.ts      # Main cron loop (60s)
-│   │   │   ├── monitor.ts    # FX rates, balances, yields
-│   │   │   ├── llm.ts        # Hermes function calling
-│   │   │   ├── executor.ts   # Swap orchestration
-│   │   │   ├── mento.ts      # Mento Broker integration
-│   │   │   ├── aave.ts       # Aave V3 deposit/withdraw
-│   │   │   ├── yields.ts     # DeFiLlama APY fetching
-│   │   │   ├── strategy.ts   # Rebalance calculation
-│   │   │   ├── delegation.ts # EIP-7710 rule validation
-│   │   │   └── memory.ts     # Redis + Filecoin logging
+│   │   └── src/
+│   │       ├── index.ts       # Main cron loop (60s)
+│   │       ├── monitor.ts     # FX rates, balances, yields
+│   │       ├── llm.ts         # Hermes function calling
+│   │       ├── executor.ts    # Swap orchestration
+│   │       ├── mento.ts       # Mento Broker integration
+│   │       ├── aave.ts        # Aave V3 deposit/withdraw
+│   │       ├── strategy.ts    # Rebalance calculation
+│   │       ├── delegation.ts  # On-chain rule validation ← the core constraint
+│   │       └── memory.ts      # Redis + Filecoin logging
 │   └── shared/           # Types, constants, utilities
+├── contracts/            # MentoGuardRules (Foundry)
 ```
 
 ---
 
-## Technologies Used
+## Technologies
 
-| Technology | Usage |
+| Technology | Role |
 |---|---|
-| **Mento Protocol** | Primary DEX for stablecoin swaps (cUSD, cEUR, cBRL, CELO) via Broker contract |
-| **Celo Blockchain** | All transactions executed on Celo mainnet (Chain ID: 42220) |
-| **Aave V3 (Celo)** | Yield generation — deposit/withdraw idle stablecoins |
-| **Filecoin / Lighthouse** | Immutable audit log of every agent tick and rebalance |
-| **Self Protocol** | ZK passport identity verification for users |
-| **NousResearch Hermes-4-70B** | LLM decision engine via OpenAI-compatible function calling |
-| **Redis (Upstash)** | Shared state between agent, dashboard, and Telegram bot |
-| **Next.js 15** | Dashboard — portfolio exposure, FX heatmap, yield opportunities, activity feed |
-| **Telegraf** | Telegram bot with natural language command parsing |
-| **viem** | On-chain reads and writes (Celo mainnet) |
+| **MentoGuardRules (Solidity)** | On-chain permission layer — the hard constraint the agent cannot bypass |
+| **Self Protocol** | ZK passport verification — graduated trust, verified humans unlock higher limits |
+| **Filecoin / Lighthouse** | Immutable audit trail — every decision permanently logged |
+| **Mento Protocol** | Stablecoin swaps (cUSD, cEUR, CELO) via Broker contract |
+| **Aave V3 (Celo)** | Yield on idle stablecoins |
+| **NousResearch Hermes-4-70B** | LLM decision engine — function calling |
+| **Celo Mainnet** | All execution — Chain ID 42220 |
+| **Redis (Upstash)** | Shared state between agent, dashboard, Telegram |
+| **Next.js 15** | Dashboard — portfolio, FX heatmap, activity feed |
+| **Telegraf** | Telegram bot — natural language commands, alerts |
+| **viem** | On-chain reads and writes |
 
 ---
 
-## Deployed Contracts Integrated
+## Deployed Contracts
 
 | Contract | Address | Network |
 |---|---|---|
@@ -172,70 +252,24 @@ mentoguard/
 
 ## Live API Endpoints
 
-All endpoints available at `https://mentoguard.vercel.app`:
-
 | Endpoint | Description |
 |---|---|
 | `GET /api/portfolio` | Current token balances and USD values |
 | `GET /api/fx-rates` | Live FX rates (cUSD, cEUR, cBRL, CELO) |
 | `GET /api/yields` | Top Celo DeFi APY opportunities from DeFiLlama |
-| `GET /api/activity` | Recent agent decisions and actions |
+| `GET /api/activity` | Recent agent decisions and Filecoin CIDs |
 | `GET /api/agent-state` | Agent status, uptime, total trades |
 | `POST /api/authorize` | Update delegation rules and target allocation |
-
----
-
-## Agent Decision Logic
-
-Hermes receives this context every tick:
-
-```
-Portfolio value: $X.XX
-Current allocation:
-  cUSD:  XX.XX% (target: 45%)
-  cEUR:  XX.XX% (target: 10%)
-  CELO:  XX.XX% (target: 45%)
-
-Drift from target:
-  cUSD:  +X.XX%
-  cEUR:  -X.XX%
-  CELO:  +X.XX%
-
-FX rates: cEUR=$1.1555, CELO=$0.48
-
-Market signals (24h):
-  CELO: ▼3.21% (mild downtrend)
-
-Aave V3 positions (earning yield):
-  cUSD: $0.62
-
-Yield opportunities on Celo:
-  cUSD: ubeswap 4.20% APY, moola 3.80% APY
-  cEUR: moola 2.90% APY
-
-User rules:
-  Drift threshold: 5%
-  Max single swap: $500
-```
-
-Hermes uses this to make market-aware decisions:
-- **CELO drifting + downtrend** → delay rebalance, send alert
-- **CELO drifting + uptrend** → rebalance immediately
-- **Portfolio balanced + stablecoins idle** → deploy to Aave
-- **Rebalance needed + funds in Aave** → withdraw from Aave, then swap
-
-Calls one of: `execute_swap`, `deposit_to_aave`, `withdraw_from_aave`, `send_alert`, or `hold`.
 
 ---
 
 ## Running Locally
 
 ### Prerequisites
-- Node.js >= 20
-- pnpm >= 9
+- Node.js >= 20, pnpm >= 9
 - A Celo wallet with private key
-- Redis instance (Upstash free tier works)
-- NousResearch API key (for Hermes)
+- Redis instance (Upstash free tier)
+- NousResearch API key (Hermes)
 
 ### Setup
 
@@ -245,20 +279,15 @@ cd mentoguard
 pnpm install
 ```
 
-Copy `.env.example` to `.env` and fill in:
+Copy `.env.example` to `.env`:
 
 ```env
-# Celo
 CELO_PRIVATE_KEY=0x...
 CELO_SMART_ACCOUNT_ADDRESS=0x...
 CELO_RPC_URL=https://forno.celo.org
-
-# AI
 HERMES_BASE_URL=https://inference-api.nousresearch.com/v1
 HERMES_API_KEY=...
 HERMES_MODEL=Hermes-4-70B
-
-# Infrastructure
 REDIS_URL=rediss://...
 TELEGRAM_BOT_TOKEN=...
 TELEGRAM_CHAT_ID=...
@@ -268,40 +297,10 @@ LIGHTHOUSE_API_KEY=...
 ### Run
 
 ```bash
-# Dashboard
-pnpm --filter @mentoguard/web dev
-
-# Agent (starts 60s cron loop)
-tsx packages/agent-core/src/index.ts
-
-# Telegram bot
-tsx apps/telegram/src/bot.ts
+pnpm --filter @mentoguard/web dev        # Dashboard on port 3003
+tsx packages/agent-core/src/index.ts    # Agent cron loop
+tsx apps/telegram/src/bot.ts            # Telegram bot
 ```
-
----
-
-## Delegation Rules
-
-Users set rules that the agent cannot exceed:
-
-```typescript
-{
-  maxSwapAmountUSD: 500,        // Max single swap
-  maxDailyVolumeUSD: 2000,      // Max daily trading volume
-  allowedTokens: [              // Whitelist of swappable tokens
-    "0x765DE8...",  // cUSD
-    "0xD8763C...",  // cEUR
-    "0x471ECE...",  // CELO
-  ],
-  timeWindow: {                 // Operating hours (UTC)
-    startHour: 0,
-    endHour: 24
-  },
-  requireHumanApprovalAbove: 1000  // Require approval for large swaps
-}
-```
-
-These rules are validated in `delegation.ts` before every swap execution. The agent physically cannot bypass them.
 
 ---
 
@@ -313,24 +312,12 @@ These rules are validated in `delegation.ts` before every swap execution. The ag
 /pause     — Halt all autonomous trading
 /resume    — Restart autonomous trading
 /history   — Last 10 swaps
-/ask       — Ask Hermes anything about your portfolio
 
-# Natural language (no slash needed):
+Natural language:
 "set target to 70% cUSD 30% cEUR"
 "set threshold to 3%"
-"be more aggressive"
 "pause trading until Monday"
 ```
-
----
-
-## Security
-
-- Private key never leaves the server environment
-- Delegation rules enforced in code before every transaction
-- All swaps validated against token allowlist
-- Human approval required above configurable threshold
-- Aave interactions only with pre-approved assets
 
 ---
 
@@ -338,9 +325,6 @@ These rules are validated in `delegation.ts` before every swap execution. The ag
 
 Built for the **Synthesis Agent Hack**.
 
-This project demonstrates:
-- A fully autonomous AI agent operating on a live blockchain
-- Real on-chain transactions executed without human intervention
-- Multi-protocol DeFi integration (Mento + Aave) with LLM decision layer
-- Constrained autonomy pattern — AI agent with hard guardrails
-- Permanent on-chain audit trail of all autonomous decisions
+The central thesis: **the most important property of an autonomous agent managing real assets is not intelligence — it is constraint.** MentoGuard demonstrates the pattern: a capable LLM decision layer operating under hard on-chain limits that neither the agent nor a malicious prompt can bypass. Every action is audited to Filecoin. Every operator is verified via Self Protocol.
+
+This is not a demo. It is a running system with a live transaction history.
